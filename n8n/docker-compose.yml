@@ -1,0 +1,39 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: cde-n8n
+    user: 'root'
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      # Host & Protocol
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=${N8N_PORT:-5678}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - TZ=${TZ:-Asia/Singapore}
+      
+      # Cookie & Security Policy
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
+      - N8N_SAMESITE_COOKIE=${N8N_SAMESITE_COOKIE:-lax}
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+      
+      # Webhook Resolution
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - N8N_PROXY_HOPS=${N8N_PROXY_HOPS:-1}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-cde-n8n-secret-encryption-key-2026-cde-pipeline}
+      
+      # Performance & Execution History Pruning
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=10000
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+    volumes:
+      - ${N8N_DATA_PATH:-./n8n_data}:/root/.n8n
+    networks:
+      - cde-network
+
+networks:
+  cde-network:
+    name: cde-network
+    driver: bridge
