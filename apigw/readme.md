@@ -80,6 +80,20 @@ curl.exe -i http://localhost:8001/
 ```
 You should receive an HTTP `200 OK` response with Kong configuration details.
 
+### 3. Firewall Configuration (UFW) for Linux Host (`sov-webapp`)
+
+If UFW is active on the host machine, allow Kong's proxy and management ports:
+
+```bash
+sudo bash scripts/configure_ufw_kong.sh
+```
+
+This opens:
+* **Port `8088/tcp`**: HTTP Proxy (Inbound Video Analytics triggers & camera webhooks)
+* **Port `8443/tcp`**: HTTPS Proxy (Secure API & webhook ingress)
+* **Port `8001/tcp`**: Admin API (Required for Kong Manager UI browser calls)
+* **Port `8002/tcp`**: Kong Manager Web GUI (`http://<SERVER_IP>:8002`)
+
 ---
 
 ## Accessing Kong Manager Dashboard

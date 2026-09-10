@@ -597,18 +597,34 @@ curl -i -X DELETE http://localhost:8001/consumers/va_dors_consumer
 
 ### 11.1 Command-Line Verification Commands (on `webapp` Linux VM)
 
+#### Linux / macOS (Bash with `jq`):
 ```bash
 # 1. Verify DORS Service
 curl -s http://localhost:8001/services/imops-dors-incident-service | jq -r '"Service: \(.name) -> Target: http://\(.host):\(.port)\(.path)"'
 
-# 2. Verify all 4 DORS Routes
+# 2. Check all Routes (Name, Paths & Service ID)
+curl -s http://localhost:8001/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", ")) | Service ID: \(.service.id)"'
+
+# 3. Verify all 4 DORS Routes specifically
 curl -s http://localhost:8001/services/imops-dors-incident-service/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", "))"'
 
-# 3. Verify DORS Consumer & Credentials
+# 4. Check all Consumers (Username & ID)
+curl -s http://localhost:8001/consumers | jq -r '.data[] | "Consumer: \(.username) (ID: \(.id))"'
+
+# 5. Verify DORS Consumer & Credentials
 curl -s http://localhost:8001/consumers/va_dors_consumer/basic-auth | jq .
 
-# 4. Verify Active Plugins on DORS Service
+# 6. Verify Active Plugins on DORS Service
 curl -s http://localhost:8001/services/imops-dors-incident-service/plugins | jq -r '.data[] | "Plugin: \(.name) (Enabled: \(.enabled))"'
+```
+
+#### Windows (PowerShell):
+```powershell
+# Check all Routes (Name, Paths & Service ID)
+(curl.exe -s http://localhost:8001/routes | ConvertFrom-Json).data | ForEach-Object { "Route: $($_.name) | Paths: $($_.paths -join ', ') | Service ID: $($_.service.id)" }
+
+# Check all Consumers (Username & ID)
+(curl.exe -s http://localhost:8001/consumers | ConvertFrom-Json).data | ForEach-Object { "Consumer: $($_.username) (ID: $($_.id))" }
 ```
 
 ### 11.2 Accessing Kong Manager from Remote Workstation (`vg`)

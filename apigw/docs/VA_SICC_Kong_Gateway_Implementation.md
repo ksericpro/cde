@@ -570,18 +570,34 @@ curl.exe -i -X PATCH "http://localhost:8001/plugins/$pluginId" -d "config.minute
 
 When connected to the `webapp` terminal via SSH, run these commands to instantly audit Kong's live configuration:
 
+#### Linux / macOS (Bash with `jq`):
 ```bash
 # 1. Check all Services
 curl -s http://localhost:8001/services | jq -r '.data[] | "[\(.name)] -> http://\(.host):\(.port)\(.path)"'
 
-# 2. Check SICC Routes
+# 2. Check all Routes (Name, Paths & Service ID)
+curl -s http://localhost:8001/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", ")) | Service ID: \(.service.id)"'
+
+# 3. Check SICC Routes specifically
 curl -s http://localhost:8001/services/imops-sicc-incident-service/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", "))"'
 
-# 3. Check Consumers & Basic Auth Credentials
+# 4. Check all Consumers (Username & ID)
+curl -s http://localhost:8001/consumers | jq -r '.data[] | "Consumer: \(.username) (ID: \(.id))"'
+
+# 5. Check Consumer Credentials & Basic Auth
 curl -s http://localhost:8001/consumers/va_system_consumer/basic-auth | jq .
 
-# 4. Check Plugins on SICC Service
+# 6. Check Plugins on SICC Service
 curl -s http://localhost:8001/services/imops-sicc-incident-service/plugins | jq -r '.data[] | "Plugin: \(.name) (Enabled: \(.enabled))"'
+```
+
+#### Windows (PowerShell):
+```powershell
+# Check all Routes (Name, Paths & Service ID)
+(curl.exe -s http://localhost:8001/routes | ConvertFrom-Json).data | ForEach-Object { "Route: $($_.name) | Paths: $($_.paths -join ', ') | Service ID: $($_.service.id)" }
+
+# Check all Consumers (Username & ID)
+(curl.exe -s http://localhost:8001/consumers | ConvertFrom-Json).data | ForEach-Object { "Consumer: $($_.username) (ID: $($_.id))" }
 ```
 
 ---
