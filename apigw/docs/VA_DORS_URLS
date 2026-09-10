@@ -1,0 +1,72 @@
+# Credential
+dors_user@isems.com
+1Pu1znaPbTqXcyC5KVpP
+
+# 1. {BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c02_cyclist
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "DORS",
+  "deviceName": "DORS Drop-Off Point C02 VA Cyclist Crowding",
+  "incidentType": "CYCLIST_GATHERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "dors_dop_c02_cyclist",
+    "associatedCamera": "DORS Drop-Off Point C02"
+  }
+}
+
+
+
+#2. {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_waiting_c03_cyclist
+
+upstreams:
+POST {{BACKEND_API}}/api/incidents/monitor
+{
+  "site": "DORS",
+  "deviceName": "DORS Waiting Area C03 VA Cyclist Crowding",
+  "incidentType": "CYCLIST_GATHERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "dors_waiting_c03_cyclist",
+    "associatedCamera": "DORS Waiting Area C03"
+  }
+}
+
+
+# 3 {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c01_illegal
+
+upstream:
+POST {{BACKEND_API}}/api/incidents/monitor
+{
+  "site": "DORS",
+  "deviceName": "DORS Drop-Off Point C01 VA Illegal Parking",
+  "incidentType": "ILLEGAL_PARKING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "dors_dop_c01_illegal",
+    "associatedCamera": "DORS Drop-Off Point C01"
+  }
+}
+
+
+# 4 {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c02_illegal
+
+upstream:
+POST {{BACKEND_API}}/api/incidents/monitor
+{
+  "site": "DORS",
+  "deviceName": "DORS Drop-Off Point C02 VA Illegal Parking",
+  "incidentType": "ILLEGAL_PARKING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "dors_dop_c02_illegal",
+    "associatedCamera": "DORS Drop-Off Point C02"
+  }
+}
