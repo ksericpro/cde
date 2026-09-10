@@ -2,7 +2,7 @@
 dors_user@isems.com
 1Pu1znaPbTqXcyC5KVpP
 
-# 1. {BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c02_cyclist
+# 1. GET/POST {BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c02_cyclist
 
 upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
@@ -21,7 +21,7 @@ upstream:
 
 
 
-#2. {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_waiting_c03_cyclist
+#2. GET/POST {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_waiting_c03_cyclist
 
 upstreams:
 POST {{BACKEND_API}}/api/incidents/monitor
@@ -38,7 +38,7 @@ POST {{BACKEND_API}}/api/incidents/monitor
 }
 
 
-# 3 {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c01_illegal
+# 3GET/POST {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c01_illegal
 
 upstream:
 POST {{BACKEND_API}}/api/incidents/monitor
@@ -55,7 +55,7 @@ POST {{BACKEND_API}}/api/incidents/monitor
 }
 
 
-# 4 {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c02_illegal
+# 4 GET/POST {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c02_illegal
 
 upstream:
 POST {{BACKEND_API}}/api/incidents/monitor

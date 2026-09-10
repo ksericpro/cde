@@ -2,7 +2,7 @@
 vizzio@imops.local
 xAJHkkm7m3V5MhtF0xGM
 
-# 1. {{BACKEND_API}}/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1
+# 1. GET/POST {{BACKEND_API}}/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1
 
 upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
@@ -21,7 +21,7 @@ upstream:
 
 
 
-# 2. {{BACKEND_API}}/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby
+# 2. GET/POST {{BACKEND_API}}/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby
 
 upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
