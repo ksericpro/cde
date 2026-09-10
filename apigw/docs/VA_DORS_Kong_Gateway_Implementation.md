@@ -572,11 +572,22 @@ curl -i -X POST "http://localhost:8001/consumers/va_dors_consumer/basic-auth" \
 
 ---
 
-## 10. Teardown / Clean-up One-Liner
+## 10. Teardown / Clean-up Utilities
 
-If you ever need to completely remove the DORS Gateway Service, Routes, and Consumers:
+### Full Gateway Purge (All Services, Routes, Plugins & Consumers):
+* **Linux / macOS:**
+  ```bash
+  bash ~/cde/apigw/scripts/reset_kong.sh -y
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\reset_kong.ps1 -Force
+  ```
 
-### Windows (PowerShell):
+### Targeted DORS Teardown Only:
+If you only need to remove the DORS Gateway Service, Routes, and Consumer without affecting other services:
+
+#### Windows (PowerShell):
 ```powershell
 # Delete Service (automatically removes attached routes and service plugins)
 curl.exe -i -X DELETE http://localhost:8001/services/imops-dors-incident-service
@@ -585,7 +596,7 @@ curl.exe -i -X DELETE http://localhost:8001/services/imops-dors-incident-service
 curl.exe -i -X DELETE http://localhost:8001/consumers/va_dors_consumer
 ```
 
-### Linux / macOS (Bash):
+#### Linux / macOS (Bash):
 ```bash
 curl -i -X DELETE http://localhost:8001/services/imops-dors-incident-service
 curl -i -X DELETE http://localhost:8001/consumers/va_dors_consumer

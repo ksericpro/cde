@@ -308,7 +308,113 @@ export KONG_ADMIN_GUI_API_URL="http://10.65.51.251:8001"
 export KONG_ADMIN_GUI_URL="http://10.65.51.251:8002"
 docker compose up -d
 ```
-After restarting, reload the browser at `http://10.65.51.251:8002` and all services, routes, and plugins will render immediately.
+---
+
+## Automation & Operational Scripts (`scripts/`)
+
+The `apigw/scripts/` directory contains production-ready automation scripts for configuring, managing, and resetting the gateway.
+
+| Script | Platform | Purpose |
+| :--- | :--- | :--- |
+| **`reset_kong.sh`** / **`reset_kong.ps1`** | Linux / Windows | Purges all Plugins, Routes, Services, and Consumers (clean slate) |
+| **`configure_ufw_kong.sh`** | Linux | Configures UFW firewall rules for ports `8088`, `8443`, `8001`, `8002` |
+| **`setup_sicc_va.sh`** / **`setup_sicc_va.ps1`** | Linux / Windows | Configures SICC Video Analytics Ingress (Service, Routes, Auth, Translators) |
+| **`setup_dors_va.sh`** / **`setup_dors_va.ps1`** | Linux / Windows | Configures DORS Video Analytics Ingress (Service, Routes, Auth, Translators) |
+
+---
+
+### 1. Reset / Purge Kong (`reset_kong.sh` / `reset_kong.ps1`)
+
+Use this script whenever you need to wipe existing configurations to start fresh without restarting Docker containers or destroying the database volume.
+
+* **Linux (Interactive confirmation):**
+  ```bash
+  bash scripts/reset_kong.sh
+  ```
+* **Linux (Non-interactive / Force):**
+  ```bash
+  bash scripts/reset_kong.sh -y
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\reset_kong.ps1 -Force
+  ```
+
+---
+
+### 2. Configure UFW Firewall (`configure_ufw_kong.sh`)
+
+Opens all required ingress and management ports in Ubuntu/Debian UFW:
+
+```bash
+sudo bash scripts/configure_ufw_kong.sh
+```
+
+**Allowed Ports:**
+* `8088/tcp`: Kong Gateway HTTP Proxy (Camera triggers & client ingress)
+* `8443/tcp`: Kong Gateway HTTPS Proxy (SSL/TLS Ingress)
+* `8001/tcp`: Kong Admin API (Required for Kong Manager browser calls)
+* `8002/tcp`: Kong Manager Web GUI (`http://<SERVER_IP>:8002`)
+
+---
+
+### 3. SICC Video Analytics Setup (`setup_sicc_va.sh` / `setup_sicc_va.ps1`)
+
+Automates creation of:
+* **Gateway Service:** `imops-sicc-incident-service`
+* **Service Plugins:** `basic-auth` (`hide_credentials: false`), `rate-limiting` (60 req/min), `acl` (`sicc_group`)
+* **Consumer:** `va_system_consumer` (`vizzio@imops.local` / `xAJHkkm7m3V5MhtF0xGM`)
+* **Routes with dynamic JSON incident translators (`post-function`):**
+  * `va-sicc-crowding-38alt` (`/va/sov-38alt-crowding`, `/va/sicc-38alt-crowding`, `/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1`)
+  * `va-sicc-loitering-38alt` (`/va/sov-38alt-loitering`, `/va/sicc-38alt-loitering`, `/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby`)
+
+**Usage (with Upstream Host Parameter):**
+```bash
+# Default (Points upstream to 10.65.51.252:13000):
+bash scripts/setup_sicc_va.sh
+
+# Specify custom upstream IP:
+bash scripts/setup_sicc_va.sh 10.65.51.252
+
+# Specify IP with custom port:
+bash scripts/setup_sicc_va.sh 10.65.51.252:13000
+
+# Specify full URL:
+bash scripts/setup_sicc_va.sh http://10.65.51.252:13000/api/incidents/monitor
+```
+
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\setup_sicc_va.ps1 -UpstreamHost 10.65.51.252
+  ```
+
+---
+
+### 4. DORS Video Analytics Setup (`setup_dors_va.sh` / `setup_dors_va.ps1`)
+
+Automates creation of:
+* **Gateway Service:** `imops-dors-incident-service`
+* **Service Plugins:** `basic-auth` (`hide_credentials: false`), `rate-limiting` (60 req/min), `acl` (`dors_group`)
+* **Consumer:** `va_dors_consumer` (`dors_user@isems.com` / `1Pu1znaPbTqXcyC5KVpP`)
+* **4 Routes with dynamic incident translators:**
+  * `va-dors-dop-c02-cyclist` (`/va/dors-dop-c02-cyclist`, `/api/incidents/translate/vizzio/va/dors_dop_c02_cyclist`)
+  * `va-dors-waiting-c03-cyclist` (`/va/dors-waiting-c03-cyclist`, `/api/incidents/translate/vizzio/va/dors_waiting_c03_cyclist`)
+  * `va-dors-dop-c01-illegal` (`/va/dors-dop-c01-illegal`, `/api/incidents/translate/vizzio/va/dors_dop_c01_illegal`)
+  * `va-dors-dop-c02-illegal` (`/va/dors-dop-c02-illegal`, `/api/incidents/translate/vizzio/va/dors_dop_c02_illegal`)
+
+**Usage (with Upstream Host Parameter):**
+```bash
+# Default (Points upstream to 10.65.51.252:13000):
+bash scripts/setup_dors_va.sh
+
+# Specify custom upstream IP:
+bash scripts/setup_dors_va.sh 10.65.51.252
+```
+
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\setup_dors_va.ps1 -UpstreamHost 10.65.51.252
+  ```
 
 ---
 

@@ -138,6 +138,17 @@ You can configure Kong either using the **Command Line (`curl`)** or visually vi
 #### Step 0 (Optional): Delete All Existing Kong Objects (Clean Reset)
 If you ever want to wipe all plugins, routes, services, and consumers to start fresh:
 
+##### Using the Reset Utility Scripts (Recommended):
+* **Linux / macOS:**
+  ```bash
+  bash ~/cde/apigw/scripts/reset_kong.sh -y
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\reset_kong.ps1 -Force
+  ```
+
+##### Or via Direct Terminal One-Liners:
 **Windows (PowerShell):**
 ```powershell
 # Delete all Plugins, Routes, Services, and Consumers
