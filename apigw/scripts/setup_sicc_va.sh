@@ -51,41 +51,84 @@ else
   fi
 fi
 
+# Helper function to reliably parse plugin ID from Kong JSON (supports jq, python3, or pure sed)
+get_plugin_id() {
+  local JSON="$1"
+  local PLUGIN_NAME="$2"
+  if command -v jq > /dev/null 2>&1; then
+    echo "$JSON" | jq -r ".data[]? | select(.name == \"$PLUGIN_NAME\") | .id" 2>/dev/null | head -n 1
+  elif command -v python3 > /dev/null 2>&1; then
+    echo "$JSON" | python3 -c "import sys, json; data=json.load(sys.stdin).get('data',[]); print(next((p['id'] for p in data if p.get('name')=='$PLUGIN_NAME'), ''))" 2>/dev/null
+  else
+    echo "$JSON" | sed 's/},{"/\n/g' | grep "\"name\":\"$PLUGIN_NAME\"" | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4
+  fi
+}
+
 # 2. Attach basic-auth, rate-limiting, and acl plugins to Service
 echo -e "\n[2/5] Attaching Service Plugins (basic-auth, rate-limiting, acl)..."
+SERVICE_PLUGINS=$(curl -s "$ADMIN_URL/services/$SERVICE_NAME/plugins" || echo '{"data":[]}')
 
 # basic-auth
-curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/plugins" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"basic-auth","config":{"hide_credentials":false}}' > /dev/null || true
-echo "   • basic-auth configured."
+if [ -z "$(get_plugin_id "$SERVICE_PLUGINS" "basic-auth")" ]; then
+  curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/plugins" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"basic-auth","config":{"hide_credentials":false}}' > /dev/null || true
+  echo "   • Attached 'basic-auth' plugin."
+else
+  echo "   • 'basic-auth' plugin already attached."
+fi
 
 # rate-limiting
-curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/plugins" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"rate-limiting","config":{"minute":60,"policy":"local"}}' > /dev/null || true
-echo "   • rate-limiting configured."
+if [ -z "$(get_plugin_id "$SERVICE_PLUGINS" "rate-limiting")" ]; then
+  curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/plugins" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"rate-limiting","config":{"minute":60,"policy":"local"}}' > /dev/null || true
+  echo "   • Attached 'rate-limiting' (60 req/min) plugin."
+else
+  echo "   • 'rate-limiting' plugin already attached."
+fi
 
 # acl
-curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/plugins" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"acl","config":{"allow":["sicc_group"]}}' > /dev/null || true
-echo "   • acl (sicc_group) configured."
+if [ -z "$(get_plugin_id "$SERVICE_PLUGINS" "acl")" ]; then
+  curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/plugins" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"acl","config":{"allow":["sicc_group"]}}' > /dev/null || true
+  echo "   • Attached 'acl' plugin (restricted to 'sicc_group')."
+else
+  echo "   • 'acl' plugin already attached."
+fi
 
 # 3. Create Consumer, Credentials, and ACL Group
 echo -e "\n[3/5] Configuring Consumer: $CONSUMER_NAME..."
-curl -s -X POST "$ADMIN_URL/consumers" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"$CONSUMER_NAME\",\"custom_id\":\"site_sicc_va\"}" > /dev/null || true
+CONSUMER_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "$ADMIN_URL/consumers/$CONSUMER_NAME" || true)
+if [ "$CONSUMER_CHECK" -ne 200 ]; then
+  curl -s -X POST "$ADMIN_URL/consumers" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\":\"$CONSUMER_NAME\",\"custom_id\":\"site_sicc_va\"}" > /dev/null || true
+  echo "   • Consumer '$CONSUMER_NAME' created."
+else
+  echo "   • Consumer '$CONSUMER_NAME' already exists."
+fi
 
-curl -s -X POST "$ADMIN_URL/consumers/$CONSUMER_NAME/basic-auth" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"$SICC_USER\",\"password\":\"$SICC_PASS\"}" > /dev/null || true
+CREDS=$(curl -s "$ADMIN_URL/consumers/$CONSUMER_NAME/basic-auth" || echo '{"data":[]}')
+if ! echo "$CREDS" | grep -q "\"username\":\"$SICC_USER\""; then
+  curl -s -X POST "$ADMIN_URL/consumers/$CONSUMER_NAME/basic-auth" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\":\"$SICC_USER\",\"password\":\"$SICC_PASS\"}" > /dev/null || true
+  echo "   • Added basic-auth credentials ($SICC_USER)."
+else
+  echo "   • Credentials for $SICC_USER already configured."
+fi
 
-curl -s -X POST "$ADMIN_URL/consumers/$CONSUMER_NAME/acls" \
-  -H "Content-Type: application/json" \
-  -d '{"group":"sicc_group"}' > /dev/null || true
-echo "   ✅ Consumer '$CONSUMER_NAME' credentials and ACL configured."
+ACLS=$(curl -s "$ADMIN_URL/consumers/$CONSUMER_NAME/acls" || echo '{"data":[]}')
+if ! echo "$ACLS" | grep -q '"group":"sicc_group"'; then
+  curl -s -X POST "$ADMIN_URL/consumers/$CONSUMER_NAME/acls" \
+    -H "Content-Type: application/json" \
+    -d '{"group":"sicc_group"}' > /dev/null || true
+  echo "   • Assigned consumer to ACL group 'sicc_group'."
+else
+  echo "   • ACL group 'sicc_group' already assigned."
+fi
 
 # 4. Helper function to create route + post-function plugin
 create_sicc_route() {
@@ -126,14 +169,14 @@ create_sicc_route() {
   local ROUTE_PLUGINS=$(curl -s "$ADMIN_URL/routes/$ROUTE_NAME/plugins" || echo '{"data":[]}')
 
   # Remove any legacy pre-function plugin on this route
-  local OLD_PRE_ID=$(echo "$ROUTE_PLUGINS" | grep -B 2 '"name":"pre-function"' | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4 || true)
+  local OLD_PRE_ID=$(get_plugin_id "$ROUTE_PLUGINS" "pre-function")
   if [ -n "$OLD_PRE_ID" ]; then
     curl -s -X DELETE "$ADMIN_URL/plugins/$OLD_PRE_ID" > /dev/null || true
   fi
 
   local LUA_CODE="local now = os.time(); kong.service.request.set_method('POST'); kong.service.request.set_header('Authorization', '$SICC_AUTH_B64'); kong.service.request.set_header('Content-Type', 'application/json'); local b = string.format('{\"site\":\"SICC\",\"deviceName\":\"$DEVICE_NAME\",\"incidentType\":\"$INCIDENT_TYPE\",\"timestamp\":%d,\"mode\":\"incident\",\"metadata\":{\"source\":\"vizzio_va\",\"webhook\":\"$WEBHOOK\",\"associatedCamera\":\"$CAMERA\"}}', now); kong.service.request.set_raw_body(b);"
 
-  local POST_FN_ID=$(echo "$ROUTE_PLUGINS" | grep -B 2 '"name":"post-function"' | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4 || true)
+  local POST_FN_ID=$(get_plugin_id "$ROUTE_PLUGINS" "post-function")
   if [ -n "$POST_FN_ID" ]; then
     curl -s -X PATCH "$ADMIN_URL/plugins/$POST_FN_ID" \
       --data-urlencode "config.access[]=$LUA_CODE" > /dev/null || true
