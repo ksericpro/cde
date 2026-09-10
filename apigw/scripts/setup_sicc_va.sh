@@ -92,37 +92,58 @@ create_sicc_route() {
   local ROUTE_NAME="$1"
   local PATH_PRIMARY="$2"
   local PATH_ALIAS="$3"
-  local DEVICE_NAME="$4"
-  local INCIDENT_TYPE="$5"
-  local WEBHOOK="$6"
-  local CAMERA="$7"
+  local PATH_TRANSLATE="$4"
+  local DEVICE_NAME="$5"
+  local INCIDENT_TYPE="$6"
+  local WEBHOOK="$7"
+  local CAMERA="$8"
 
   echo "   -> Configuring Route: $ROUTE_NAME..."
 
-  # Create or update route
-  curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/routes" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"name\": \"$ROUTE_NAME\",
-      \"paths\": [\"$PATH_PRIMARY\", \"$PATH_ALIAS\"],
-      \"methods\": [\"GET\", \"POST\"],
-      \"strip_path\": true
-    }" > /dev/null || true
+  # Check if route already exists
+  local ROUTE_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "$ADMIN_URL/routes/$ROUTE_NAME" || true)
+  if [ "$ROUTE_CHECK" -eq 200 ]; then
+    echo "      Route '$ROUTE_NAME' exists. Updating paths..."
+    curl -s -X PATCH "$ADMIN_URL/routes/$ROUTE_NAME" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"paths\": [\"$PATH_PRIMARY\", \"$PATH_ALIAS\", \"$PATH_TRANSLATE\"],
+        \"methods\": [\"GET\", \"POST\"],
+        \"strip_path\": true
+      }" > /dev/null
+  else
+    curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/routes" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"name\": \"$ROUTE_NAME\",
+        \"paths\": [\"$PATH_PRIMARY\", \"$PATH_ALIAS\", \"$PATH_TRANSLATE\"],
+        \"methods\": [\"GET\", \"POST\"],
+        \"strip_path\": true
+      }" > /dev/null
+  fi
+
+  # Check existing plugins on this route
+  local ROUTE_PLUGINS=$(curl -s "$ADMIN_URL/routes/$ROUTE_NAME/plugins" || echo '{"data":[]}')
 
   # Remove any legacy pre-function plugin on this route
-  local OLD_PLUGINS=$(curl -s "$ADMIN_URL/routes/$ROUTE_NAME/plugins" || echo '{"data":[]}')
-  local OLD_PRE_ID=$(echo "$OLD_PLUGINS" | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4 || true)
+  local OLD_PRE_ID=$(echo "$ROUTE_PLUGINS" | grep -B 2 '"name":"pre-function"' | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4 || true)
   if [ -n "$OLD_PRE_ID" ]; then
     curl -s -X DELETE "$ADMIN_URL/plugins/$OLD_PRE_ID" > /dev/null || true
   fi
 
   local LUA_CODE="local now = os.time(); kong.service.request.set_method('POST'); kong.service.request.set_header('Authorization', '$SICC_AUTH_B64'); kong.service.request.set_header('Content-Type', 'application/json'); local b = string.format('{\"site\":\"SICC\",\"deviceName\":\"$DEVICE_NAME\",\"incidentType\":\"$INCIDENT_TYPE\",\"timestamp\":%d,\"mode\":\"incident\",\"metadata\":{\"source\":\"vizzio_va\",\"webhook\":\"$WEBHOOK\",\"associatedCamera\":\"$CAMERA\"}}', now); kong.service.request.set_raw_body(b);"
 
-  curl -s -X POST "$ADMIN_URL/routes/$ROUTE_NAME/plugins" \
-    -d "name=post-function" \
-    --data-urlencode "config.access[]=$LUA_CODE" > /dev/null || true
-  
-  echo "      ✅ Route '$ROUTE_NAME' and translator plugin attached."
+  local POST_FN_ID=$(echo "$ROUTE_PLUGINS" | grep -B 2 '"name":"post-function"' | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4 || true)
+  if [ -n "$POST_FN_ID" ]; then
+    curl -s -X PATCH "$ADMIN_URL/plugins/$POST_FN_ID" \
+      --data-urlencode "config.access[]=$LUA_CODE" > /dev/null || true
+    echo "      ✅ Route '$ROUTE_NAME' translator plugin updated."
+  else
+    curl -s -X POST "$ADMIN_URL/routes/$ROUTE_NAME/plugins" \
+      -d "name=post-function" \
+      --data-urlencode "config.access[]=$LUA_CODE" > /dev/null || true
+    echo "      ✅ Route '$ROUTE_NAME' and translator plugin attached."
+  fi
 }
 
 echo -e "\n[4/5] Configuring SICC Routes & Translator Plugins..."
@@ -132,6 +153,7 @@ create_sicc_route \
   "va-sicc-crowding-38alt" \
   "/va/sov-38alt-crowding" \
   "/va/sicc-38alt-crowding" \
+  "/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1" \
   "CROWDING_VA-SOV_38ALT_L4_ICC_1" \
   "CROWDING" \
   "crowding_sov_38alt_l4_icc_1" \
@@ -142,6 +164,7 @@ create_sicc_route \
   "va-sicc-loitering-38alt" \
   "/va/sov-38alt-loitering" \
   "/va/sicc-38alt-loitering" \
+  "/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby" \
   "LOITERING_VA-SOV_38ALT_L4_Lift_Lobby" \
   "LOITERING" \
   "loitering_sov_38alt_l4_lift_lobby" \
@@ -154,8 +177,11 @@ echo "Service:   $SERVICE_NAME -> $TARGET_URL"
 echo "Consumer:  $CONSUMER_NAME ($SICC_USER)"
 echo -e "\nAvailable Ingress Endpoints (Port 8088):"
 echo "  • http://localhost:8088/va/sov-38alt-crowding"
-echo "  • http://localhost:8088/va/sov-38alt-loitering"
 echo "  • http://localhost:8088/va/sicc-38alt-crowding"
+echo "  • http://localhost:8088/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1"
+echo "  • http://localhost:8088/va/sov-38alt-loitering"
 echo "  • http://localhost:8088/va/sicc-38alt-loitering"
+echo "  • http://localhost:8088/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby"
 echo -e "\nExample Test Command:"
 echo "curl -i -X GET http://localhost:8088/va/sov-38alt-crowding -u \"$SICC_USER:$SICC_PASS\""
+

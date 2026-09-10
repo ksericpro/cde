@@ -5,10 +5,10 @@
     Creates / Updates:
     - Gateway Service: imops-sicc-incident-service (points to http://host.docker.internal:13000/api/incidents/monitor)
     - Service Plugins: basic-auth, rate-limiting (60 req/min), acl (sicc_group)
-    - Consumer: va_sicc_consumer (credentials: vizzio@imops.local / xAJHkkm7m3V5MhtF0xGM)
+    - Consumer: va_system_consumer (credentials: vizzio@imops.local / xAJHkkm7m3V5MhtF0xGM)
     - Routes + post-function dynamic translator plugins:
-      1. va-sicc-crowding-38alt   (/va/sov-38alt-crowding, /va/sicc-38alt-crowding)
-      2. va-sicc-loitering-38alt  (/va/sov-38alt-loitering, /va/sicc-38alt-loitering)
+      1. va-sicc-crowding-38alt   (/va/sov-38alt-crowding, /va/sicc-38alt-crowding, /api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1)
+      2. va-sicc-loitering-38alt  (/va/sov-38alt-loitering, /va/sicc-38alt-loitering, /api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby)
 #>
 
 $adminUrl = "http://localhost:8001"
@@ -28,8 +28,8 @@ Write-Host "`n[1/5] Configuring Gateway Service: $serviceName..." -ForegroundCol
 try {
     $existingService = Invoke-RestMethod -Uri "$adminUrl/services/$serviceName" -Method Get -ErrorAction SilentlyContinue
     if ($existingService) {
-        Write-Host "Service $serviceName already exists (ID: $($existingService.id)). Ensuring port 13000..." -ForegroundColor Green
-        Invoke-RestMethod -Uri "$adminUrl/services/$serviceName" -Method Patch -ContentType "application/json" -Body (@{ port = 13000 } | ConvertTo-Json) | Out-Null
+        Write-Host "Service $serviceName already exists (ID: $($existingService.id)). Ensuring upstream URL..." -ForegroundColor Green
+        Invoke-RestMethod -Uri "$adminUrl/services/$serviceName" -Method Patch -ContentType "application/json" -Body (@{ url = $targetUrl } | ConvertTo-Json) | Out-Null
         $serviceId = $existingService.id
     }
 } catch {
@@ -135,7 +135,11 @@ try {
 $routes = @(
     @{
         Name = "va-sicc-crowding-38alt"
-        Paths = @("/va/sov-38alt-crowding", "/va/sicc-38alt-crowding")
+        Paths = @(
+            "/va/sov-38alt-crowding",
+            "/va/sicc-38alt-crowding",
+            "/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1"
+        )
         DeviceName = "CROWDING_VA-SOV_38ALT_L4_ICC_1"
         IncidentType = "CROWDING"
         Webhook = "crowding_sov_38alt_l4_icc_1"
@@ -143,7 +147,11 @@ $routes = @(
     },
     @{
         Name = "va-sicc-loitering-38alt"
-        Paths = @("/va/sov-38alt-loitering", "/va/sicc-38alt-loitering")
+        Paths = @(
+            "/va/sov-38alt-loitering",
+            "/va/sicc-38alt-loitering",
+            "/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby"
+        )
         DeviceName = "LOITERING_VA-SOV_38ALT_L4_Lift_Lobby"
         IncidentType = "LOITERING"
         Webhook = "loitering_sov_38alt_l4_lift_lobby"
@@ -160,7 +168,13 @@ foreach ($r in $routes) {
     try {
         $existingRoute = Invoke-RestMethod -Uri "$adminUrl/routes/$($r.Name)" -Method Get -ErrorAction Stop
         $routeId = $existingRoute.id
-        Write-Host "     Route $($r.Name) already exists (ID: $routeId)." -ForegroundColor Gray
+        Write-Host "     Route $($r.Name) already exists (ID: $routeId). Updating paths..." -ForegroundColor Gray
+        $routeUpdatePayload = @{
+            paths = $r.Paths
+            methods = @("GET", "POST")
+            strip_path = $true
+        } | ConvertTo-Json
+        Invoke-RestMethod -Uri "$adminUrl/routes/$routeId" -Method Patch -ContentType "application/json" -Body $routeUpdatePayload | Out-Null
     } catch {
         $routePayload = @{
             name = $r.Name
@@ -219,7 +233,9 @@ Write-Host "Service:   $serviceName -> $targetUrl"
 Write-Host "Consumer:  $consumerName ($siccUsername)"
 Write-Host "`nAvailable Ingress Endpoints (Port 8088):"
 foreach ($r in $routes) {
-    Write-Host "  • http://localhost:8088$($r.Paths[0])" -ForegroundColor Cyan
+    foreach ($p in $r.Paths) {
+        Write-Host "  • http://localhost:8088$p" -ForegroundColor Cyan
+    }
 }
 Write-Host "`nExample Test Command:"
 Write-Host 'curl.exe -i -X GET http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"' -ForegroundColor Yellow

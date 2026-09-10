@@ -1,28 +1,39 @@
-I need to create kong api services/api to accept tht following.
+# Credential
+vizzio@imops.local
+xAJHkkm7m3V5MhtF0xGM
 
-1. CROWDING_VA-SOV_38ALT_L4_ICC_1
+# 1. {{BACKEND_API}}/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1
 
-2. LOITERING_VA-SOV_38ALT_L4_Lift_Lobby
-
-These should accept GET/POST urls for each VA and call the downstream imops api. it should accept basic authentication (username and password)
-
-a) {{BACKEND_API}}/api/incidents/translate/vizzio/va/dors_dop_c02_cyclist
-use Basic Authentication of Username/Password to generate <token>
-
-for info only:
-POST {{BACKEND_API}}/api/incidents/monitor
-Authorization: Bearer <token>
-Content-Type: application/json
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-"site": "DORS",
-"deviceName": "DORS Drop-Off Point C02 VA Cyclist Crowding",
-"incidentType": "CYCLIST_GATHERING",
-"timestamp": 1782353500,
-"mode": "incident",
-"metadata": {
-"source": "vizzio_va",
-"webhook": "dors_dop_c02_cyclist",
-"associatedCamera": "DORS Drop-Off Point C02"
+  "site": "SICC",
+  "deviceName": "CROWDING_VA-SOV_38ALT_L4_ICC_1",
+  "incidentType": "CROWDING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "crowding_sov_38alt_l4_icc_1",
+    "associatedCamera": "SOV 38ALT L4 ICC 1"
+  }
 }
+
+
+
+# 2. {{BACKEND_API}}/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SICC",
+  "deviceName": "LOITERING_VA-SOV_38ALT_L4_Lift_Lobby",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l4_lift_lobby",
+    "associatedCamera": "SOV 38ALT L4 Lift Lobby"
+  }
 }
