@@ -50,6 +50,8 @@ services:
       # so your browser queries the webapp host instead of local machine.
       KONG_ADMIN_GUI_URL: ${KONG_ADMIN_GUI_URL:-http://localhost:8002}
       KONG_ADMIN_GUI_API_URL: ${KONG_ADMIN_GUI_API_URL:-http://localhost:8001}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8088:8000"  # Public Proxy (HTTP)
       - "8443:8443"  # Public Proxy (HTTPS)
