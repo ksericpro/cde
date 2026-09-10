@@ -193,6 +193,54 @@ curl.exe -i -X POST http://localhost:8001/services/imops-dors-incident-service/p
 ### 6.3 HMAC / Mutual TLS (mTLS) for Camera Appliances
 For edge camera appliances that support client certificates or cryptographic signatures, transition from Basic Auth to mTLS or HMAC-SHA256 signature verification.
 
+### 6.4 Securing Kong Manager UI & Admin API (Authentication & Access Control)
+
+In **Kong Gateway Open-Source (OSS)**, the Kong Manager Web UI (`:8002`) and Admin API (`:8001`) do not feature built-in user logins or RBAC (Role-Based Access Control), as those are commercial Kong Enterprise/Konnect features. In production environments, access to the control plane must be secured using one of the following architectural patterns:
+
+#### Strategy 1: Host Firewall Subnet Restriction (UFW) — Recommended Immediate Pattern
+Ensure ports `8001` (Admin API) and `8002` (Kong Manager UI) are strictly locked to admin workstations or the management VLAN, while port `8088` remains open to camera subnets:
+```bash
+# Allow Kong Manager & Admin API only from trusted management IP (e.g. 10.65.51.50)
+sudo ufw allow from 10.65.51.50 to any port 8001 proto tcp comment "Admin API from Admin Workstation"
+sudo ufw allow from 10.65.51.50 to any port 8002 proto tcp comment "Kong Manager UI from Admin Workstation"
+sudo ufw reload
+```
+
+#### Strategy 2: Reverse Proxy with HTTP Basic Auth (Browser Login Prompt)
+Deploy a lightweight Nginx sidecar or reverse proxy in front of Kong Manager that enforces standard HTTP Basic Authentication with `htpasswd`:
+```nginx
+server {
+    listen 8002;
+    auth_basic "Restricted Kong Manager Control Plane";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    location / {
+        proxy_pass http://kong-gateway:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+#### Strategy 3: Zero-Trust Identity / SSO (OAuth2-Proxy or Cloudflare Access)
+For enterprise multi-operator access without VPNs:
+* Place **OAuth2-Proxy** or **Cloudflare Zero Trust Access** in front of port `8002`.
+* Operators log in with corporate SSO (Google Workspace, Microsoft Entra ID / Azure AD, or Okta).
+
+#### Strategy 4: Localhost Binding & SSH Tunneling (Maximum Security)
+Bind ports `8001` and `8002` strictly to `127.0.0.1` in `docker-compose.yml`:
+```yaml
+ports:
+  - "8088:8000"           # Public for camera triggers
+  - "127.0.0.1:8001:8001" # Only reachable from local machine
+  - "127.0.0.1:8002:8002" # Only reachable from local machine
+```
+Administrators securely tunnel to the dashboard from their laptops over encrypted SSH:
+```bash
+ssh -L 8002:localhost:8002 -L 8001:localhost:8001 sems@10.65.51.252
+```
+Opening `http://localhost:8002` in the local browser provides encrypted, authenticated access without exposing any admin ports to the network.
+
 ---
 
 ## 7. Metrics, Dashboards & Alerting
