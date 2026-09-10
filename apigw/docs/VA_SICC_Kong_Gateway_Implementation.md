@@ -129,7 +129,77 @@ Kong dynamically transforms incoming camera triggers into the full iMOPS inciden
 
 ---
 
-## 5. Step-by-Step Kong Gateway Configuration
+## 5. One-Click Automated Setup & Utility Scripts (Recommended)
+
+Automated scripts in `apigw/scripts/` configure or reset the entire gateway in seconds with 100% idempotent upsert logic:
+
+| Script | Platform | What it Does |
+| :--- | :--- | :--- |
+| **`setup_sicc_va.sh`** / **`.ps1`** | Linux / Windows | Sets up Service, Plugins, Consumer, and both Routes with translators |
+| **`reset_kong.sh`** / **`.ps1`** | Linux / Windows | Purges all Plugins, Routes, Services, and Consumers (clean reset) |
+| **`configure_ufw_kong.sh`** | Linux | Opens ports `8088`, `8443`, `8001`, `8002` in UFW firewall |
+
+---
+
+### 5.1 SICC Automated Setup (`setup_sicc_va.sh` / `setup_sicc_va.ps1`)
+
+Automates the complete end-to-end configuration:
+* **Gateway Service:** `imops-sicc-incident-service` -> `http://<UPSTREAM_HOST>:13000/api/incidents/monitor`
+* **Service Plugins:** `basic-auth` (hide_credentials: false), `rate-limiting` (60 req/min), `acl` (`sicc_group`)
+* **Consumer:** `va_system_consumer` (`vizzio@imops.local` / `xAJHkkm7m3V5MhtF0xGM`)
+* **Routes & Dynamic JSON Translators (`post-function`):**
+  1. `va-sicc-crowding-38alt` (`/va/sov-38alt-crowding`, `/va/sicc-38alt-crowding`, `/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1`)
+  2. `va-sicc-loitering-38alt` (`/va/sov-38alt-loitering`, `/va/sicc-38alt-loitering`, `/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby`)
+
+#### How to Run (Linux / macOS):
+```bash
+# Default (Points upstream to production IP 10.65.51.252:13000):
+bash ~/cde/apigw/scripts/setup_sicc_va.sh
+
+# Or pass custom upstream host IP as parameter:
+bash ~/cde/apigw/scripts/setup_sicc_va.sh 10.65.51.252
+
+# Or pass custom port:
+bash ~/cde/apigw/scripts/setup_sicc_va.sh 10.65.51.252:13000
+
+# Or pass full URL:
+bash ~/cde/apigw/scripts/setup_sicc_va.sh http://10.65.51.252:13000/api/incidents/monitor
+```
+
+#### How to Run (Windows PowerShell):
+```powershell
+powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\setup_sicc_va.ps1 -UpstreamHost 10.65.51.252
+```
+
+---
+
+### 5.2 Reset / Purge Utility (`reset_kong.sh` / `reset_kong.ps1`)
+
+Quickly wipes all existing Plugins, Routes, Services, and Consumers without needing to delete database volumes or restart containers:
+
+* **Linux:**
+  ```bash
+  # Force reset (no interactive prompt):
+  bash ~/cde/apigw/scripts/reset_kong.sh -y
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\reset_kong.ps1 -Force
+  ```
+
+---
+
+### 5.3 Host UFW Firewall Configuration (`configure_ufw_kong.sh`)
+
+If UFW is active on `sov-webapp`, opens all required proxy and management ports:
+
+```bash
+sudo bash ~/cde/apigw/scripts/configure_ufw_kong.sh
+```
+
+---
+
+## 6. Step-by-Step Manual Kong Gateway Configuration (Reference / Optional)
 
 You can configure Kong either using the **Command Line (`curl`)** or visually via **Kong Manager UI** (`http://localhost:8002`).
 
@@ -397,7 +467,7 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
 
 ---
 
-## 6. How to Add More VAs in the Future (No Backend Code Changes)
+## 7. How to Add More VAs in the Future (No Backend Code Changes)
 
 When a 3rd or 4th camera comes along (e.g. `INTRUSION_VA-SOV_38ALT_Roof`):
 **You do NOT modify iMOPS.** You simply register the new Route and its JSON payload in Kong:
@@ -446,7 +516,7 @@ curl -i -X POST http://localhost:8001/routes/va-intrusion-sov-roof/plugins \
 
 ---
 
-## 7. How to Update or Rotate Consumer Credentials
+## 8. How to Update or Rotate Consumer Credentials
 
 If you ever need to change or rotate the username and password for a consumer (e.g. updating from an old account to `vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM`):
 
@@ -499,7 +569,7 @@ curl -i -X POST http://localhost:8001/consumers/va_system_consumer/basic-auth \
 
 ---
 
-## 8. Verification & Testing
+## 9. Verification & Testing
 
 Verify both `GET` and `POST` triggers through Kong on port `8088`:
 
@@ -626,7 +696,7 @@ KONG_ADMIN_GUI_API_URL: http://<WEBAPP_IP>:8001
 
 ---
 
-## 9. Future Roadmap & Observability
+## 10. Future Roadmap & Observability
 
 The detailed architectural roadmap and enterprise-grade observability specifications have been extracted into a dedicated document:
 
