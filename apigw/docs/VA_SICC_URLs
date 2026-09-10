@@ -11,7 +11,7 @@ upstream:
 
 {
   "site": "SICC",
-  "deviceName": "CROWDING_VA-SOV_38ALT_L4_ICC_1",
+  "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING",
   "incidentType": "CROWDING",
   "mode": "incident",
   "metadata": {
@@ -30,7 +30,7 @@ upstream:
 
 {
   "site": "SICC",
-  "deviceName": "LOITERING_VA-SOV_38ALT_L4_Lift_Lobby",
+  "deviceName": "SOV 38ALT L4 LIFT LOBBY VA LOITERING",  
   "incidentType": "LOITERING",
   "mode": "incident",
   "metadata": {

@@ -215,7 +215,7 @@ create_sicc_route \
   "/va/sov-38alt-crowding" \
   "/va/sicc-38alt-crowding" \
   "/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1" \
-  "CROWDING_VA-SOV_38ALT_L4_ICC_1" \
+  "SOV 38ALT L4 ICC 1 VA CROWDING" \
   "CROWDING" \
   "crowding_sov_38alt_l4_icc_1" \
   "SOV 38ALT L4 ICC 1"
@@ -226,7 +226,7 @@ create_sicc_route \
   "/va/sov-38alt-loitering" \
   "/va/sicc-38alt-loitering" \
   "/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby" \
-  "LOITERING_VA-SOV_38ALT_L4_Lift_Lobby" \
+  "SOV 38ALT L4 LIFT LOBBY VA LOITERING" \
   "LOITERING" \
   "loitering_sov_38alt_l4_lift_lobby" \
   "SOV 38ALT L4 Lift Lobby"

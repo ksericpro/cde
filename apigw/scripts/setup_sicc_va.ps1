@@ -156,7 +156,7 @@ $routes = @(
             "/va/sicc-38alt-crowding",
             "/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1"
         )
-        DeviceName = "CROWDING_VA-SOV_38ALT_L4_ICC_1"
+        DeviceName = "SOV 38ALT L4 ICC 1 VA CROWDING"
         IncidentType = "CROWDING"
         Webhook = "crowding_sov_38alt_l4_icc_1"
         Camera = "SOV 38ALT L4 ICC 1"
@@ -168,7 +168,7 @@ $routes = @(
             "/va/sicc-38alt-loitering",
             "/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby"
         )
-        DeviceName = "LOITERING_VA-SOV_38ALT_L4_Lift_Lobby"
+        DeviceName = "SOV 38ALT L4 LIFT LOBBY VA LOITERING"
         IncidentType = "LOITERING"
         Webhook = "loitering_sov_38alt_l4_lift_lobby"
         Camera = "SOV 38ALT L4 Lift Lobby"
