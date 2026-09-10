@@ -1,0 +1,150 @@
+# =============================================================================
+#  Common Data Environment (CDE) - Git Ignore Configuration
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+#  1. Environment & Secrets
+# -----------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+*.secret
+*.secrets
+credentials.json
+
+# Whitelist tracked template/example files
+!.env.example
+!.env.production
+
+# -----------------------------------------------------------------------------
+#  2. Persistent Storage & Container Volumes
+# -----------------------------------------------------------------------------
+# Gateway (apigw)
+apigw/pgdata/
+apigw/data/
+
+# Ingestion (n8n)
+n8n/n8n_data/*
+!n8n/n8n_data/nodes/
+!n8n/n8n_data/nodes/package.json
+!n8n/n8n_data/.gitkeep
+
+# Observability (Grafana & Prometheus)
+grafana/grafana_data/
+grafana/prometheus_data/
+grafana/data/
+
+# Centralized Logging (ELK)
+elk/es_data/
+elk/logstash_data/
+elk/filebeat_data/
+elk/data/
+elk/logs/
+
+# Lakehouse & Storage (MinIO & DuckDB)
+minio_data/
+lake_data/
+*.duckdb
+*.parquet
+
+# Redis
+dump.rdb
+
+# -----------------------------------------------------------------------------
+#  3. Logs & Process Files
+# -----------------------------------------------------------------------------
+*.log
+*.log.*
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# -----------------------------------------------------------------------------
+#  4. Database Files
+# -----------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# -----------------------------------------------------------------------------
+#  5. Security, Certificates & Keys
+# -----------------------------------------------------------------------------
+*.key
+*.crt
+*.pem
+*.pfx
+*.p12
+*.keystore
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+known_hosts
+
+# -----------------------------------------------------------------------------
+#  6. Node.js & Python Dependencies & Build Artifacts
+# -----------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# -----------------------------------------------------------------------------
+#  7. Operating System & Editor Artifacts
+# -----------------------------------------------------------------------------
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# IDEs & Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~

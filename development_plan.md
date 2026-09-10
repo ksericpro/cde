@@ -9,6 +9,7 @@ This document outlines the step-by-step implementation plan for building, testin
 ```
  ┌────────────────────────────────────────────────────────────────────────┐
  │                      CDE IMPLEMENTATION PHASES                         │
+ │                   Edge Ingestion to Full Observability                 │
  └────────────────────────────────────────────────────────────────────────┘
      │
      ├─► Phase 1: Ingress Edge Gateway (Kong OSS 3.9 + Kong Manager)
@@ -23,7 +24,11 @@ This document outlines the step-by-step implementation plan for building, testin
      │
      ├─► Phase 6: Published Data Egress & Serving API (PostgREST / FastAPI)
      │
-     └─► Phase 7: End-to-End Integration, Security Hardening & Monitoring
+     ├─► Phase 7: Infrastructure Monitoring & Telemetry (Prometheus & Grafana)
+     │
+     ├─► Phase 8: Centralized Log Aggregation & Analysis (ELK Stack)
+     │
+     └─► Phase 9: End-to-End Integration, Security Hardening & Acceptance Testing
 ```
 
 ---
@@ -323,22 +328,373 @@ Provide low-latency ($<20\text{ ms}$) query endpoints for Virtual Assistants, Da
 
 ---
 
-## Phase 7: End-to-End Integration, Observability & Hardening
+## Phase 7: Infrastructure Monitoring & Telemetry (Prometheus & Grafana)
 
 ### Objective
-Validate end-to-end telemetry flow from source ingestion through to published consumption, configure monitoring, and enforce security policies.
+Establish continuous, real-time metrics collection and visual dashboards for all CDE hardware infrastructure, Docker containers, and API Gateway traffic. Provide automated health alerts for CPU/RAM exhaustion, disk saturation, gateway latency spikes, and downstream service failures.
+
+### Observability Architecture
+```
+ [ Host Metrics (Node Exporter :9100) ] ──────────┐
+ [ Container Metrics (cAdvisor :8080) ] ──────────┼──► [ Prometheus Server :9090 ] ──► [ Grafana Dashboards :3000 ]
+ [ Kong Gateway (Prometheus Plugin :8001/metrics) ]──┤        (Scrapes every 15s)         (Visuals & Alert Rules)
+ [ Redis / MinIO / n8n Telemetry Endpoints ] ───────┘
+```
+
+### Components
+- **`cde-prometheus`**: Time-series database scraping metrics targets on a 15-second interval (port `9090`).
+- **`cde-grafana`**: Visualization engine with pre-provisioned data sources and dashboards (port `3000`).
+- **`cde-node-exporter`**: Host-level collector measuring system CPU, RAM, disk I/O, swap, and network throughput (port `9100`).
+- **`cde-cadvisor`**: Google cAdvisor measuring per-container resource consumption, restart counts, and throttling (port `8080`).
+- **`kong-prometheus`**: Kong built-in plugin exposing request counts, latencies, HTTP status codes (`2xx`/`4xx`/`5xx`), and upstream health via `http://localhost:8001/metrics`.
+
+### Setup Instructions
+1. Directory structure under `c:\Projects\cde\grafana`:
+   ```
+   grafana/
+   ├── docker-compose.yml
+   ├── prometheus/
+   │   └── prometheus.yml
+   └── provisioning/
+       ├── datasources/
+       │   └── prometheus-datasource.yml
+       └── dashboards/
+           ├── dashboards.yml
+           └── definitions/
+               ├── host_node_overview.json
+               ├── docker_cadvisor_overview.json
+               └── kong_gateway_overview.json
+   ```
+2. Docker Compose configuration (`grafana/docker-compose.yml`):
+   ```yaml
+   services:
+     prometheus:
+       image: prom/prometheus:v2.53.0
+       container_name: cde-prometheus
+       restart: unless-stopped
+       ports:
+         - "9090:9090"
+       volumes:
+         - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+         - prometheus_data:/prometheus
+       command:
+         - '--config.file=/etc/prometheus/prometheus.yml'
+         - '--storage.tsdb.path=/prometheus'
+         - '--storage.tsdb.retention.time=15d'
+         - '--web.enable-lifecycle'
+       networks:
+         - cde-network
+
+     grafana:
+       image: grafana/grafana:11.1.0
+       container_name: cde-grafana
+       restart: unless-stopped
+       ports:
+         - "3000:3000"
+       environment:
+         - GF_SECURITY_ADMIN_USER=admin
+         - GF_SECURITY_ADMIN_PASSWORD=cdepassword123
+         - GF_USERS_ALLOW_SIGN_UP=false
+       volumes:
+         - grafana_data:/var/lib/grafana
+         - ./provisioning:/etc/grafana/provisioning:ro
+       networks:
+         - cde-network
+       depends_on:
+         - prometheus
+
+     node-exporter:
+       image: prom/node-exporter:v1.8.1
+       container_name: cde-node-exporter
+       restart: unless-stopped
+       ports:
+         - "9100:9100"
+       volumes:
+         - /proc:/host/proc:ro
+         - /sys:/host/sys:ro
+         - /:/rootfs:ro
+       command:
+         - '--path.procfs=/host/proc'
+         - '--path.rootfs=/rootfs'
+         - '--path.sysfs=/host/sys'
+         - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+       networks:
+         - cde-network
+
+     cadvisor:
+       image: gcr.io/cadvisor/cadvisor:v0.49.1
+       container_name: cde-cadvisor
+       restart: unless-stopped
+       ports:
+         - "8080:8080"
+       volumes:
+         - /:/rootfs:ro
+         - /var/run:/var/run:ro
+         - /sys:/sys:ro
+         - /var/lib/docker/:/var/lib/docker:ro
+         - /dev/disk/:/dev/disk:ro
+       devices:
+         - /dev/kmsg
+       privileged: true
+       networks:
+         - cde-network
+
+   volumes:
+     prometheus_data:
+     grafana_data:
+
+   networks:
+     cde-network:
+       external: true
+   ```
+3. Prometheus scraping configuration (`grafana/prometheus/prometheus.yml`):
+   ```yaml
+   global:
+     scrape_interval: 15s
+     evaluation_interval: 15s
+
+   scrape_configs:
+     - job_name: 'prometheus'
+       static_configs:
+         - targets: ['localhost:9090']
+
+     - job_name: 'node-exporter'
+       static_configs:
+         - targets: ['cde-node-exporter:9100']
+
+     - job_name: 'cadvisor'
+       static_configs:
+         - targets: ['cde-cadvisor:8080']
+
+     - job_name: 'kong-gateway'
+       metrics_path: /metrics
+       static_configs:
+         - targets: ['kong-gateway:8001']
+   ```
+4. Enable Kong Prometheus Plugin:
+   ```bash
+   # Enable prometheus metrics collection globally on Kong Gateway
+   curl.exe -i -X POST http://localhost:8001/plugins \
+     -d "name=prometheus" \
+     -d "config.status_code_metrics=true" \
+     -d "config.latency_metrics=true" \
+     -d "config.bandwidth_metrics=true" \
+     -d "config.upstream_health_metrics=true"
+   ```
+
+### Verification & Testing
+1. Verify Kong metrics scraping endpoint:
+   ```bash
+   curl.exe -i http://localhost:8001/metrics
+   ```
+   *Expected:* Output containing `kong_http_requests_total`, `kong_latency_bucket`, and `kong_upstream_target_health`.
+2. Verify Prometheus targets health:
+   - Browse to `http://localhost:9090/targets`.
+   - Confirm all endpoints (`node-exporter`, `cadvisor`, `kong-gateway`) show **UP**.
+3. Access Grafana at **[http://localhost:3000](http://localhost:3000)** (User: `admin` / Password: `cdepassword123`).
+4. Validate dashboards:
+   - **Host Performance:** CPU usage, memory consumption, available disk space on root volume.
+   - **Container Performance:** CPU/RAM per container (`kong-gateway`, `cde-n8n`, `kong-db`).
+   - **Gateway Performance:** Total traffic throughput, P95 latency distribution, 4xx/5xx error rates.
+
+---
+
+## Phase 8: Centralized Logging & Log Analytics (ELK Stack)
+
+### Objective
+Unify and centralize log streams across all CDE components (Kong Gateway access/error logs, n8n workflow execution logs, Docker daemon container streams, and host security/UFW logs) into an indexed, searchable Elasticsearch repository with Kibana visualizations and saved search queries.
+
+### Logging Architecture
+```
+ [ Kong Access/Error Logs (HTTP / TCP Log Plugin) ] ──┐
+ [ Docker Container Logs (stdout/stderr via Filebeat) ] ──┼──► [ Logstash :5044 ] ──► [ Elasticsearch :9200 ] ──► [ Kibana :5601 ]
+ [ Host System Logs (/var/log/syslog, auth.log, ufw) ] ──┘     (Filter / Grok / JSON)   (Indexed Store: cde-logs-*)  (Search, Discovery, UI)
+```
+
+### Components
+- **`cde-elasticsearch`**: Distributed search and storage engine storing parsed log events in time-partitioned daily indices `cde-logs-YYYY.MM.DD` (port `9200`). Configured for single-node development/edge deployment with bounded JVM heaps.
+- **`cde-kibana`**: Log analytics and visual query UI (port `5601`) for real-time log tailing, search filters, and security incident investigation.
+- **`cde-logstash`**: Pipeline engine accepting Beats log data (port `5044`), applying Grok pattern extraction to parse unformatted lines, and standardizing JSON schemas before outputting to Elasticsearch.
+- **`cde-filebeat`**: Lightweight agent mounted to host Docker container logs (`/var/lib/docker/containers/*/*.log`) and host log files (`/var/log/syslog`, `/var/log/ufw.log`) with automated container metadata enrichment.
+- **`kong-tcp-log` / `kong-http-log`**: Kong plugins streaming structured gateway telemetry (request headers, response status, client IP, route/service IDs, upstream latencies) directly into Logstash/Elasticsearch.
+
+### Setup Instructions
+1. Directory structure under `c:\Projects\cde\elk`:
+   ```
+   elk/
+   ├── docker-compose.yml
+   ├── logstash/
+   │   ├── config/
+   │   │   └── logstash.yml
+   │   └── pipeline/
+   │       └── logstash.conf
+   └── filebeat/
+       └── filebeat.yml
+   ```
+2. Docker Compose configuration (`elk/docker-compose.yml`):
+   ```yaml
+   services:
+     elasticsearch:
+       image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+       container_name: cde-elasticsearch
+       restart: unless-stopped
+       environment:
+         - node.name=cde-es01
+         - cluster.name=cde-docker-cluster
+         - discovery.type=single-node
+         - bootstrap.memory_lock=true
+         - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+         - xpack.security.enabled=false
+       ulimits:
+         memlock:
+           soft: -1
+           hard: -1
+         nofile:
+           soft: 65536
+           hard: 65536
+       volumes:
+         - es_data:/usr/share/elasticsearch/data
+       ports:
+         - "9200:9200"
+       networks:
+         - cde-network
+
+     logstash:
+       image: docker.elastic.co/logstash/logstash:8.14.3
+       container_name: cde-logstash
+       restart: unless-stopped
+       volumes:
+         - ./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+       environment:
+         - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+       ports:
+         - "5044:5044"
+         - "5000/tcp:5000/tcp"
+       networks:
+         - cde-network
+       depends_on:
+         - elasticsearch
+
+     kibana:
+       image: docker.elastic.co/kibana/kibana:8.14.3
+       container_name: cde-kibana
+       restart: unless-stopped
+       ports:
+         - "5601:5601"
+       environment:
+         - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+       networks:
+         - cde-network
+       depends_on:
+         - elasticsearch
+
+     filebeat:
+       image: docker.elastic.co/beats/filebeat:8.14.3
+       container_name: cde-filebeat
+       user: root
+       restart: unless-stopped
+       volumes:
+         - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+         - /var/lib/docker/containers:/var/lib/docker/containers:ro
+         - /var/run/docker.sock:/var/run/docker.sock:ro
+         - /var/log:/var/log:ro
+       networks:
+         - cde-network
+       depends_on:
+         - logstash
+
+   volumes:
+     es_data:
+
+   networks:
+     cde-network:
+       external: true
+   ```
+3. Logstash pipeline configuration (`elk/logstash/pipeline/logstash.conf`):
+   ```ruby
+   input {
+     beats {
+       port => 5044
+     }
+     tcp {
+       port => 5000
+       codec => json_lines
+     }
+   }
+
+   filter {
+     if [fields][service] == "kong" {
+       mutate {
+         add_field => { "[@metadata][target_index]" => "cde-kong-logs" }
+       }
+     } else if [docker][container][name] =~ "n8n" {
+       mutate {
+         add_field => { "[@metadata][target_index]" => "cde-n8n-logs" }
+       }
+     } else {
+       mutate {
+         add_field => { "[@metadata][target_index]" => "cde-system-logs" }
+       }
+     }
+   }
+
+   output {
+     elasticsearch {
+       hosts => ["http://elasticsearch:9200"]
+       index => "%{[@metadata][target_index]}-%{+YYYY.MM.dd}"
+     }
+   }
+   ```
+4. Configure Kong Gateway Log Shipping:
+   ```bash
+   # Enable Kong TCP Log plugin shipping structured access logs to Logstash:5000
+   curl.exe -i -X POST http://localhost:8001/plugins \
+     -d "name=tcp-log" \
+     -d "config.host=cde-logstash" \
+     -d "config.port=5000" \
+     -d "config.tls=false"
+   ```
+
+### Verification & Testing
+1. Check Elasticsearch node status:
+   ```bash
+   curl.exe -i http://localhost:9200/_cluster/health?pretty
+   ```
+   *Expected:* Cluster status `"green"` or `"yellow"` (single node).
+2. Access Kibana at **[http://localhost:5601](http://localhost:5601)**:
+   - Navigate to **Stack Management** $\rightarrow$ **Data Views** (Index Patterns).
+   - Create index pattern `cde-*` matching timestamp field `@timestamp`.
+3. Generate Gateway traffic:
+   ```bash
+   curl.exe -i http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+   ```
+4. Verify in **Kibana Discover**:
+   - Filter by `service: kong` or `response.status: 200`.
+   - Confirm request trace includes client IP, latency, URI, and credential identity.
+
+---
+
+## Phase 9: End-to-End Integration, Security Hardening & Acceptance Testing
+
+### Objective
+Validate end-to-end telemetry flow from edge ingress through to lake storage, transformation, serving, real-time metrics monitoring, and centralized logging, while enforcing production firewall and credential security policies.
 
 ### Deliverables & Checklist
 - [ ] **End-to-End Ingestion Validation:** Pushing a mock sensor batch triggers both the urgent alert (Redis) and persists to MinIO raw.
 - [ ] **Automated Lakehouse ETL:** Scheduled DuckDB job runs without manual intervention and updates Gold Parquet.
 - [ ] **Egress Performance:** Virtual Assistant queries `/api/v1/metrics` and receives responses in $< 20\text{ ms}$.
+- [ ] **Infrastructure Observability (Grafana):**
+  - Host CPU/RAM/Disk and container health dashboards operational at `http://localhost:3000`.
+  - Kong Prometheus metrics actively plotting request rates, error codes, and upstream latencies.
+- [ ] **Centralized Logging (ELK):**
+  - Kong gateway access logs automatically streamed to Elasticsearch via Logstash/Filebeat.
+  - All Docker container stdout/stderr searchable in Kibana Discover (`http://localhost:5601`).
 - [ ] **Security Hardening:**
-  - `key-auth` enabled on public routes.
-  - Rate limiting enforced (e.g. 100 requests/minute per consumer).
+  - `key-auth` or basic authentication enabled on all public routes.
+  - Rate limiting enforced (e.g., 60-100 requests/minute per consumer).
+  - Kong Admin API (`:8001`) and Kong Manager (`:8002`) protected behind host firewall (UFW) or basic auth.
+  - Elasticsearch and Grafana secured with non-default administrative credentials.
   - CORS headers restricted to permitted dashboard origins.
-- [ ] **Monitoring & Health Dashboard:**
-  - Kong Manager active on `:8002`.
-  - Container health checks monitored across all services.
 
 ---
 
@@ -352,4 +708,6 @@ Validate end-to-end telemetry flow from source ingestion through to published co
 | **Phase 4** | MinIO Object Store (Bronze Zone) | **Pending** | Day 3 | Buckets: `raw`, `curated`, `publish` |
 | **Phase 5** | DuckDB/Polars Lakehouse ETL | **Pending** | Day 4 | SQL transformation scripts |
 | **Phase 6** | Egress API & Kong Caching | **Pending** | Day 5 | PostgREST / FastAPI serving |
-| **Phase 7** | Hardening & E2E Validation | **Pending** | Day 6 | Final acceptance & monitoring |
+| **Phase 7** | Infrastructure Monitoring (Grafana + Prometheus) | **Pending** | Day 6 | Host, cAdvisor & Kong Gateway dashboards |
+| **Phase 8** | Centralized Logging (ELK Stack) | **Pending** | Day 7 | Elasticsearch, Logstash, Kibana & Filebeat |
+| **Phase 9** | Hardening & E2E Acceptance Testing | **Pending** | Day 8 | Final acceptance, security & audit |

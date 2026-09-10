@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape Host Infrastructure metrics (CPU, RAM, Disk, Network)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['cde-node-exporter:9100']
+        labels:
+          instance: 'cde-host'
+          environment: 'production'
+
+  # Scrape Docker container metrics via cAdvisor
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cde-cadvisor:8080']
+        labels:
+          instance: 'cde-docker'
+
+  # Scrape Kong API Gateway (Traffic throughput, latencies, HTTP status codes)
+  - job_name: 'kong-gateway'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8001']
+        labels:
+          service: 'kong-api-gateway'
