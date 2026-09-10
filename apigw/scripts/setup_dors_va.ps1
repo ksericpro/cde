@@ -13,9 +13,23 @@
       4. va-dors-dop-c02-illegal      (/va/dors-dop-c02-illegal)
 #>
 
+param(
+    [Parameter(Position = 0)]
+    [string]$UpstreamHost = "10.65.51.252"
+)
+
 $adminUrl = "http://localhost:8001"
 $serviceName = "imops-dors-incident-service"
-$targetUrl = "http://host.docker.internal:13000/api/incidents/monitor"
+
+# Upstream URL resolution:
+if ($UpstreamHost -match '^https?://') {
+    $targetUrl = $UpstreamHost
+} elseif ($UpstreamHost -match ':\d+$') {
+    $targetUrl = "http://${UpstreamHost}/api/incidents/monitor"
+} else {
+    $targetUrl = "http://${UpstreamHost}:13000/api/incidents/monitor"
+}
+
 $consumerName = "va_dors_consumer"
 $dorsUsername = "dors_user@isems.com"
 $dorsPassword = "1Pu1znaPbTqXcyC5KVpP"
@@ -23,6 +37,8 @@ $dorsBase64Auth = "Basic ZG9yc191c2VyQGlzZW1zLmNvbToxUHUxem5hUGJUcVhjeUM1S1ZwUA=
 
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host "🚀 Starting DORS VA Ingress Setup on Kong Gateway" -ForegroundColor Cyan
+Write-Host "   Admin URL:    $adminUrl" -ForegroundColor Gray
+Write-Host "   Upstream URL: $targetUrl" -ForegroundColor Gray
 Write-Host "====================================================" -ForegroundColor Cyan
 
 # 1. Create or verify Gateway Service

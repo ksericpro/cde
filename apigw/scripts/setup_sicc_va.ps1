@@ -11,9 +11,23 @@
       2. va-sicc-loitering-38alt  (/va/sov-38alt-loitering, /va/sicc-38alt-loitering, /api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby)
 #>
 
+param(
+    [Parameter(Position = 0)]
+    [string]$UpstreamHost = "10.65.51.252"
+)
+
 $adminUrl = "http://localhost:8001"
 $serviceName = "imops-sicc-incident-service"
-$targetUrl = "http://host.docker.internal:13000/api/incidents/monitor"
+
+# Upstream URL resolution:
+if ($UpstreamHost -match '^https?://') {
+    $targetUrl = $UpstreamHost
+} elseif ($UpstreamHost -match ':\d+$') {
+    $targetUrl = "http://${UpstreamHost}/api/incidents/monitor"
+} else {
+    $targetUrl = "http://${UpstreamHost}:13000/api/incidents/monitor"
+}
+
 $consumerName = "va_system_consumer"
 $siccUsername = "vizzio@imops.local"
 $siccPassword = "xAJHkkm7m3V5MhtF0xGM"
@@ -21,6 +35,8 @@ $siccBase64Auth = "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
 
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host "🚀 Starting SICC VA Ingress Setup on Kong Gateway" -ForegroundColor Cyan
+Write-Host "   Admin URL:    $adminUrl" -ForegroundColor Gray
+Write-Host "   Upstream URL: $targetUrl" -ForegroundColor Gray
 Write-Host "====================================================" -ForegroundColor Cyan
 
 # 1. Create or verify Gateway Service

@@ -6,7 +6,25 @@ set -e
 
 ADMIN_URL="${KONG_ADMIN_URL:-http://localhost:8001}"
 SERVICE_NAME="imops-sicc-incident-service"
-TARGET_URL="${BACKEND_URL:-http://host.docker.internal:13000/api/incidents/monitor}"
+
+# Upstream Host / URL Resolution:
+# Usage: ./setup_sicc_va.sh [UPSTREAM_HOST_OR_URL]
+# Examples:
+#   ./setup_sicc_va.sh 10.65.51.252
+#   ./setup_sicc_va.sh 10.65.51.252:13000
+#   ./setup_sicc_va.sh http://host.docker.internal:13000/api/incidents/monitor
+UPSTREAM_INPUT="${1:-${BACKEND_URL:-}}"
+
+if [ -z "$UPSTREAM_INPUT" ]; then
+  TARGET_URL="http://10.65.51.252:13000/api/incidents/monitor"
+elif [[ "$UPSTREAM_INPUT" =~ ^https?:// ]]; then
+  TARGET_URL="$UPSTREAM_INPUT"
+elif [[ "$UPSTREAM_INPUT" =~ :[0-9]+ ]]; then
+  TARGET_URL="http://${UPSTREAM_INPUT}/api/incidents/monitor"
+else
+  TARGET_URL="http://${UPSTREAM_INPUT}:13000/api/incidents/monitor"
+fi
+
 CONSUMER_NAME="va_system_consumer"
 SICC_USER="vizzio@imops.local"
 SICC_PASS="xAJHkkm7m3V5MhtF0xGM"
@@ -14,8 +32,8 @@ SICC_AUTH_B64="Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
 
 echo "===================================================="
 echo "🚀 Starting SICC VA Ingress Setup on Kong Gateway"
-echo "   Admin URL:   $ADMIN_URL"
-echo "   Target URL:  $TARGET_URL"
+echo "   Admin URL:    $ADMIN_URL"
+echo "   Upstream URL: $TARGET_URL"
 echo "===================================================="
 
 # 0. Connectivity Check
