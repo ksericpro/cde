@@ -165,14 +165,14 @@ Register the iMOPS Monitor endpoint as the upstream service:
 **Windows (PowerShell):**
 ```powershell
 curl.exe -i -X POST http://localhost:8001/services `
-  -d "name=imops-incident-monitor-service" `
+  -d "name=imops-sicc-incident-service" `
   -d "url=http://host.docker.internal:13000/api/incidents/monitor"
 ```
 
 **Linux / macOS (Bash):**
 ```bash
 curl -i -X POST http://localhost:8001/services \
-  -d "name=imops-incident-monitor-service" \
+  -d "name=imops-sicc-incident-service" \
   -d "url=http://host.docker.internal:13000/api/incidents/monitor"
 ```
 
@@ -185,13 +185,13 @@ Setting `config.hide_credentials=false` ensures the `Authorization: Basic ...` h
 
 ```powershell
 # Windows PowerShell
-curl.exe -i -X POST http://localhost:8001/services/imops-incident-monitor-service/plugins `
+curl.exe -i -X POST http://localhost:8001/services/imops-sicc-incident-service/plugins `
   -d "name=basic-auth" `
   -d "config.hide_credentials=false"
 ```
 ```bash
 # Linux / macOS Bash
-curl -i -X POST http://localhost:8001/services/imops-incident-monitor-service/plugins \
+curl -i -X POST http://localhost:8001/services/imops-sicc-incident-service/plugins \
   -d "name=basic-auth" \
   -d "config.hide_credentials=false"
 ```
@@ -199,14 +199,14 @@ curl -i -X POST http://localhost:8001/services/imops-incident-monitor-service/pl
 ##### 2.2 Enable `rate-limiting` Plugin (Throttler):
 ```powershell
 # Windows PowerShell
-curl.exe -i -X POST http://localhost:8001/services/imops-incident-monitor-service/plugins `
+curl.exe -i -X POST http://localhost:8001/services/imops-sicc-incident-service/plugins `
   -d "name=rate-limiting" `
   -d "config.minute=60" `
   -d "config.policy=local"
 ```
 ```bash
 # Linux / macOS Bash
-curl -i -X POST http://localhost:8001/services/imops-incident-monitor-service/plugins \
+curl -i -X POST http://localhost:8001/services/imops-sicc-incident-service/plugins \
   -d "name=rate-limiting" \
   -d "config.minute=60" \
   -d "config.policy=local"
@@ -236,7 +236,7 @@ curl -i -X POST http://localhost:8001/consumers/va_system_consumer/basic-auth \
 ##### 3.1 Create Public Route:
 ```powershell
 # Windows PowerShell
-curl.exe -i -X POST http://localhost:8001/services/imops-incident-monitor-service/routes `
+curl.exe -i -X POST http://localhost:8001/services/imops-sicc-incident-service/routes `
   -d "name=va-crowding-sov-38alt" `
   -d "paths[]=/va/sov-38alt-crowding" `
   -d "methods[]=GET" `
@@ -245,7 +245,7 @@ curl.exe -i -X POST http://localhost:8001/services/imops-incident-monitor-servic
 ```
 ```bash
 # Linux / macOS Bash
-curl -i -X POST http://localhost:8001/services/imops-incident-monitor-service/routes \
+curl -i -X POST http://localhost:8001/services/imops-sicc-incident-service/routes \
   -d "name=va-crowding-sov-38alt" \
   -d "paths[]=/va/sov-38alt-crowding" \
   -d "methods[]=GET" \
@@ -287,7 +287,7 @@ curl -i -X POST http://localhost:8001/routes/va-crowding-sov-38alt/plugins \
 ##### 4.1 Create Public Route:
 ```powershell
 # Windows PowerShell
-curl.exe -i -X POST http://localhost:8001/services/imops-incident-monitor-service/routes `
+curl.exe -i -X POST http://localhost:8001/services/imops-sicc-incident-service/routes `
   -d "name=va-loitering-sov-38alt" `
   -d "paths[]=/va/sov-38alt-loitering" `
   -d "methods[]=GET" `
@@ -296,7 +296,7 @@ curl.exe -i -X POST http://localhost:8001/services/imops-incident-monitor-servic
 ```
 ```bash
 # Linux / macOS Bash
-curl -i -X POST http://localhost:8001/services/imops-incident-monitor-service/routes \
+curl -i -X POST http://localhost:8001/services/imops-sicc-incident-service/routes \
   -d "name=va-loitering-sov-38alt" \
   -d "paths[]=/va/sov-38alt-loitering" \
   -d "methods[]=GET" \
@@ -337,12 +337,12 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
 
 1. **Create Gateway Service:**
    - Go to **Gateway Services** -> Click **New Gateway Service**.
-   - **Name:** `imops-incident-monitor-service`
+   - **Name:** `imops-sicc-incident-service`
    - **Upstream URL:** `http://host.docker.internal:13000/api/incidents/monitor`
    - Click **Save**.
 
 2. **Add Security & Throttling Plugins:**
-   - Under `imops-incident-monitor-service` -> **Plugins** -> **Add Plugin** -> Select **Basic Auth**.
+   - Under `imops-sicc-incident-service` -> **Plugins** -> **Add Plugin** -> Select **Basic Auth**.
    - Set **Hide Credentials** to `false` (so iMOPS receives the Basic Auth header). Click **Save**.
    - Click **Add Plugin** again -> Select **Rate Limiting**.
    - Set **Config.Minute** to `60`. Click **Save**.
@@ -353,7 +353,7 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
    - Enter **Username:** `vizzio@imops.local` and **Password:** `xAJHkkm7m3V5MhtF0xGM`. Click **Save**.
 
 4. **Add Crowding Route:**
-   - Under `imops-incident-monitor-service` -> **Routes** -> **New Route**.
+   - Under `imops-sicc-incident-service` -> **Routes** -> **New Route**.
    - **Name:** `va-crowding-sov-38alt` | **Paths:** `/va/sov-38alt-crowding` | Check **GET** and **POST**.
    - **Strip Path:** Enable (`true`). Click **Save**.
    - Open this route -> **Plugins** -> **Add Plugin** -> Select **Pre-Function**.
@@ -369,7 +369,7 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
    - Click **Save**.
 
 5. **Add Loitering Route:**
-   - Under `imops-incident-monitor-service` -> **Routes** -> **New Route**.
+   - Under `imops-sicc-incident-service` -> **Routes** -> **New Route**.
    - **Name:** `va-loitering-sov-38alt` | **Paths:** `/va/sov-38alt-loitering` | Check **GET** and **POST**.
    - **Strip Path:** Enable (`true`). Click **Save**.
    - Open this route -> **Plugins** -> **Add Plugin** -> Select **Pre-Function**.
@@ -394,7 +394,7 @@ When a 3rd or 4th camera comes along (e.g. `INTRUSION_VA-SOV_38ALT_Roof`):
 ### Windows (PowerShell):
 ```powershell
 # 1. Create Route
-curl.exe -i -X POST http://localhost:8001/services/imops-incident-monitor-service/routes `
+curl.exe -i -X POST http://localhost:8001/services/imops-sicc-incident-service/routes `
   -d "name=va-intrusion-sov-roof" `
   -d "paths[]=/va/sov-roof-intrusion" `
   -d "methods[]=GET" `
@@ -420,7 +420,7 @@ Invoke-RestMethod -Uri "http://localhost:8001/routes/va-intrusion-sov-roof/plugi
 ### Linux / macOS (Bash):
 ```bash
 # 1. Create Route
-curl -i -X POST http://localhost:8001/services/imops-incident-monitor-service/routes \
+curl -i -X POST http://localhost:8001/services/imops-sicc-incident-service/routes \
   -d "name=va-intrusion-sov-roof" \
   -d "paths[]=/va/sov-roof-intrusion" \
   -d "methods[]=GET" \
@@ -528,7 +528,7 @@ By default, Kong Gateway enforces **60 requests per minute**. You can change thi
 
 #### Via Kong Manager UI (`http://localhost:8002`) (Recommended):
 1. Open **[http://localhost:8002](http://localhost:8002)**.
-2. Go to **Gateway Services** ➔ click **`imops-incident-monitor-service`**.
+2. Go to **Gateway Services** ➔ click **`imops-sicc-incident-service`**.
 3. Go to the **Plugins** tab.
 4. Locate **`rate-limiting`** ➔ click the action menu (**`...`**) on the right ➔ click **Edit**.
 5. Change **`Minute`** to your desired limit (e.g. `120`, `300`).
@@ -538,7 +538,7 @@ By default, Kong Gateway enforces **60 requests per minute**. You can change thi
 #### Via Command Line (`curl`):
 ```powershell
 # Retrieve plugin ID:
-$pluginId = (Invoke-RestMethod http://localhost:8001/services/imops-incident-monitor-service/plugins).data | 
+$pluginId = (Invoke-RestMethod http://localhost:8001/services/imops-sicc-incident-service/plugins).data | 
     Where-Object { $_.name -eq "rate-limiting" } | 
     Select-Object -ExpandProperty id
 
@@ -563,6 +563,39 @@ curl.exe -i -X PATCH "http://localhost:8001/plugins/$pluginId" -d "config.minute
   }
 }
 ```
+
+---
+
+### 5. CLI Verification Commands on `webapp` Server
+
+When connected to the `webapp` terminal via SSH, run these commands to instantly audit Kong's live configuration:
+
+```bash
+# 1. Check all Services
+curl -s http://localhost:8001/services | jq -r '.data[] | "[\(.name)] -> http://\(.host):\(.port)\(.path)"'
+
+# 2. Check SICC Routes
+curl -s http://localhost:8001/services/imops-sicc-incident-service/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", "))"'
+
+# 3. Check Consumers & Basic Auth Credentials
+curl -s http://localhost:8001/consumers/va_system_consumer/basic-auth | jq .
+
+# 4. Check Plugins on SICC Service
+curl -s http://localhost:8001/services/imops-sicc-incident-service/plugins | jq -r '.data[] | "Plugin: \(.name) (Enabled: \(.enabled))"'
+```
+
+---
+
+### 6. Accessing Kong Manager from Remote Workstation (`vg`)
+
+If accessing the Kong Manager UI from another machine (e.g. the `vg` appliance at `http://<WEBAPP_IP>:8002`), ensure `KONG_ADMIN_GUI_API_URL` in `docker-compose.yml` points to the `webapp` IP rather than `localhost`:
+
+```yaml
+KONG_ADMIN_GUI_URL: http://<WEBAPP_IP>:8002
+KONG_ADMIN_GUI_API_URL: http://<WEBAPP_IP>:8001
+```
+
+*Reason:* Kong Manager is a client-side browser SPA. Setting this allows the browser on `vg` to query the `webapp` host on port `8001` rather than trying to query `localhost` on the `vg` machine itself.
 
 ---
 

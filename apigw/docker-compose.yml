@@ -45,8 +45,11 @@ services:
       # Admin API & UI
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
       KONG_ADMIN_GUI_LISTEN: 0.0.0.0:8002
-      KONG_ADMIN_GUI_URL: http://localhost:8002
-      KONG_ADMIN_GUI_API_URL: http://localhost:8001
+      # NOTE FOR MULTI-SERVER / REMOTE ACCESS (e.g. accessing webapp UI from vg):
+      # If accessing Kong Manager from another machine, set KONG_ADMIN_GUI_API_URL to http://<WEBAPP_IP>:8001
+      # so your browser queries the webapp host instead of local machine.
+      KONG_ADMIN_GUI_URL: ${KONG_ADMIN_GUI_URL:-http://localhost:8002}
+      KONG_ADMIN_GUI_API_URL: ${KONG_ADMIN_GUI_API_URL:-http://localhost:8001}
     ports:
       - "8088:8000"  # Public Proxy (HTTP)
       - "8443:8443"  # Public Proxy (HTTPS)

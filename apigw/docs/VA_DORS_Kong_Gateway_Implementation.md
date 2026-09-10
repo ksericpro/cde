@@ -591,4 +591,36 @@ curl -i -X DELETE http://localhost:8001/services/imops-dors-incident-service
 curl -i -X DELETE http://localhost:8001/consumers/va_dors_consumer
 ```
 
+---
+
+## 11. CLI Verification on `webapp` & Remote Browser Access
+
+### 11.1 Command-Line Verification Commands (on `webapp` Linux VM)
+
+```bash
+# 1. Verify DORS Service
+curl -s http://localhost:8001/services/imops-dors-incident-service | jq -r '"Service: \(.name) -> Target: http://\(.host):\(.port)\(.path)"'
+
+# 2. Verify all 4 DORS Routes
+curl -s http://localhost:8001/services/imops-dors-incident-service/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", "))"'
+
+# 3. Verify DORS Consumer & Credentials
+curl -s http://localhost:8001/consumers/va_dors_consumer/basic-auth | jq .
+
+# 4. Verify Active Plugins on DORS Service
+curl -s http://localhost:8001/services/imops-dors-incident-service/plugins | jq -r '.data[] | "Plugin: \(.name) (Enabled: \(.enabled))"'
+```
+
+### 11.2 Accessing Kong Manager from Remote Workstation (`vg`)
+
+If opening the Kong Manager dashboard from a browser on the `vg` machine at `http://<WEBAPP_IP>:8002`, ensure that `KONG_ADMIN_GUI_API_URL` in `docker-compose.yml` on `webapp` is set to `http://<WEBAPP_IP>:8001` (not `localhost`):
+
+```yaml
+KONG_ADMIN_GUI_URL: http://<WEBAPP_IP>:8002
+KONG_ADMIN_GUI_API_URL: http://<WEBAPP_IP>:8001
+```
+
+This ensures the browser running on `vg` fetches live service and route data from the `webapp` server rather than failing to reach `localhost:8001`.
+
+
 
