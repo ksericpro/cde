@@ -158,7 +158,8 @@ Automated scripts in `apigw/scripts/` configure or reset the entire gateway in s
 
 | Script | Platform | What it Does |
 | :--- | :--- | :--- |
-| **`setup_sicc_va.sh`** / **`.ps1`** | Linux / Windows | Sets up Service, Plugins, Consumer, and both Routes with translators |
+| **`setup_sicc_va.sh`** / **`.ps1`** | Linux / Windows | Sets up Service, Plugins, Consumer, and all 21 Routes with translators |
+| **`test_sicc_va.sh`** / **`.ps1`** | Linux / Windows | Smoke tests health, security boundaries, all 21 routes, and rate limiting |
 | **`reset_kong.sh`** / **`.ps1`** | Linux / Windows | Purges all Plugins, Routes, Services, and Consumers (clean reset) |
 | **`configure_ufw_kong.sh`** | Linux | Opens ports `8088`, `8443`, `8001`, `8002` in UFW firewall |
 
@@ -195,7 +196,29 @@ powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\setup_sic
 
 ---
 
-### 5.2 Reset / Purge Utility (`reset_kong.sh` / `reset_kong.ps1`)
+### 5.2 Automated Ingress Smoke & Verification Testing (`test_sicc_va.sh` / `test_sicc_va.ps1`)
+
+Validates the entire deployment in under 5 seconds: checks Kong health, tests security rejection (missing & bad auth), sends `GET` and `POST` probes across all 21 camera routes, and tests rate limiting burst enforcement.
+
+* **Linux / macOS:**
+  ```bash
+  # Test against localhost:
+  bash ~/cde/apigw/scripts/test_sicc_va.sh
+
+  # Or test against remote server IP:
+  bash ~/cde/apigw/scripts/test_sicc_va.sh http://10.65.51.252:8088
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_sicc_va.ps1
+  
+  # Or test remote:
+  powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_sicc_va.ps1 -GatewayUrl http://10.65.51.252:8088
+  ```
+
+---
+
+### 5.3 Reset / Purge Utility (`reset_kong.sh` / `reset_kong.ps1`)
 
 Quickly wipes all existing Plugins, Routes, Services, and Consumers without needing to delete database volumes or restart containers:
 
@@ -211,7 +234,7 @@ Quickly wipes all existing Plugins, Routes, Services, and Consumers without need
 
 ---
 
-### 5.3 Host UFW Firewall Configuration (`configure_ufw_kong.sh`)
+### 5.4 Host UFW Firewall Configuration (`configure_ufw_kong.sh`)
 
 If UFW is active on `sov-webapp`, opens all required proxy and management ports:
 
@@ -593,63 +616,283 @@ curl -i -X POST http://localhost:8001/consumers/va_system_consumer/basic-auth \
 
 ## 9. Verification & Testing
 
-Verify both `GET` and `POST` triggers through Kong on port `8088`:
+This section provides a **complete, exhaustive test suite** for verifying the Kong Gateway ingress deployment across all **21 production VA cameras**, security boundaries, HTTP method translations, rate limiting, and downstream backend persistence.
 
-### 1. Test Crowding VA
-```powershell
-# Windows (GET or POST)
-curl.exe -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl.exe -i -X POST http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-```
+---
+
+### 9.1 Test Overview & Credentials
+
+* **Ingress Gateway Base URL:** `http://<KONG_HOST>:8088` (or `http://localhost:8088` locally, `http://10.65.51.252:8088` on production)
+* **Ingress Consumer:** `va_system_consumer`
+* **HTTP Basic Auth Username:** `vizzio@imops.local`
+* **HTTP Basic Auth Password:** `xAJHkkm7m3V5MhtF0xGM`
+* **Base64 Header:** `Authorization: Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN`
+* **ACL Group:** `sicc_group`
+* **Downstream Target:** `http://<BACKEND_HOST_IP>:13000/api/incidents/monitor`
+
+---
+
+### 9.2 One-Click Automated Verification Smoke Tests (Recommended)
+
+Run the automated test suite to validate gateway health, security rejection, all 21 camera routes (`GET` & `POST`), and rate limiting burst protection in under 5 seconds:
+
+#### Linux / macOS (Bash):
 ```bash
-# Linux / macOS (GET or POST)
-curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl -i -X POST http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+# Test local gateway:
+bash ~/cde/apigw/scripts/test_sicc_va.sh
+
+# Or test remote host:
+bash ~/cde/apigw/scripts/test_sicc_va.sh http://10.65.51.252:8088
 ```
 
-### 2. Test Loitering VA
+#### Windows (PowerShell):
 ```powershell
-# Windows (GET or POST)
-curl.exe -i -X GET http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl.exe -i -X POST http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+# Test local gateway:
+powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_sicc_va.ps1
+
+# Or test remote host:
+powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_sicc_va.ps1 -GatewayUrl http://10.65.51.252:8088
 ```
+
+#### Instant Terminal One-Liner (No Script Required):
+**Windows (PowerShell):**
+```powershell
+@(
+  "/va/sov-38alt-l4-icc-1-crowding",
+  "/va/sov-38alt-l4-lift-lobby-loitering",
+  "/va/sov-38alt-main-gate-smoking",
+  "/va/sov-38alt-main-gate-fire",
+  "/va/sov-38alt-carpark-lot-1-illegal-parking",
+  "/va/sov-38alt-l1-lift-lobby-loitering",
+  "/va/sov-38alt-l4-corridor-o-s-war-room-loitering",
+  "/va/sov-38alt-l4-interlock-loitering",
+  "/va/sov-38alt-l5-corridor-loitering",
+  "/va/sov-38alt-side-fencing-intrusion",
+  "/va/sov-38alt-side-fencing-smoking",
+  "/va/sov-38alt-side-fencing-fire",
+  "/va/sov-38alt-roof-top-loitering",
+  "/va/sov-38alt-l2-lift-lobby-loitering",
+  "/va/sov-38alt-l3-lift-lobby-loitering",
+  "/va/sov-38alt-l2-main-lobby-loitering",
+  "/va/sov-38alt-l2-reception-loitering",
+  "/va/sov-38alt-main-road-loitering",
+  "/va/sov-38alt-l6-lift-lobby-loitering",
+  "/va/sov-38alt-l5-o-s-cyber-room-loitering",
+  "/va/sov-38alt-main-gate-perimeter-intrusion"
+) | ForEach-Object {
+    $code = (curl.exe -s -o /dev/null -w "%{http_code}" "http://localhost:8088$_" -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM")
+    Write-Host "$_ -> HTTP $code" -ForegroundColor $(if ($code -eq 200) { "Green" } else { "Red" })
+}
+```
+
+**Linux / macOS (Bash):**
 ```bash
-# Linux / macOS (GET or POST)
-curl -i -X GET http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl -i -X POST http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+for route in \
+  /va/sov-38alt-l4-icc-1-crowding \
+  /va/sov-38alt-l4-lift-lobby-loitering \
+  /va/sov-38alt-main-gate-smoking \
+  /va/sov-38alt-main-gate-fire \
+  /va/sov-38alt-carpark-lot-1-illegal-parking \
+  /va/sov-38alt-l1-lift-lobby-loitering \
+  /va/sov-38alt-l4-corridor-o-s-war-room-loitering \
+  /va/sov-38alt-l4-interlock-loitering \
+  /va/sov-38alt-l5-corridor-loitering \
+  /va/sov-38alt-side-fencing-intrusion \
+  /va/sov-38alt-side-fencing-smoking \
+  /va/sov-38alt-side-fencing-fire \
+  /va/sov-38alt-roof-top-loitering \
+  /va/sov-38alt-l2-lift-lobby-loitering \
+  /va/sov-38alt-l3-lift-lobby-loitering \
+  /va/sov-38alt-l2-main-lobby-loitering \
+  /va/sov-38alt-l2-reception-loitering \
+  /va/sov-38alt-main-road-loitering \
+  /va/sov-38alt-l6-lift-lobby-loitering \
+  /va/sov-38alt-l5-o-s-cyber-room-loitering \
+  /va/sov-38alt-main-gate-perimeter-intrusion; do
+    code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8088$route" -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM")
+    echo "$route -> HTTP $code"
+done
 ```
 
-### 3. Verify Rate Limiting / Throttling (Burst Protection)
+---
+
+### 9.3 Complete 21-Route Test Commands & Verification Matrix
+
+Every route accepts both **`GET`** and **`POST`** methods and transforms into the standardized incident schema on the upstream backend:
+
+| # | Public Ingress URL Path | Incident Type | Camera / Sensor | Expected HTTP Code | Test Command (Windows / Linux) |
+|---|---|---|---|---|---|
+| **1** | `/va/sov-38alt-l4-icc-1-crowding`<br>*(alias: `/va/sov-38alt-crowding`)* | `CROWDING` | SOV 38ALT L4 ICC 1 | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **2** | `/va/sov-38alt-l4-lift-lobby-loitering`<br>*(alias: `/va/sov-38alt-loitering`)* | `LOITERING` | SOV 38ALT L4 Lift Lobby | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **3** | `/va/sov-38alt-main-gate-smoking` | `SMOKING` | SOV 38ALT Main Gate | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-main-gate-smoking -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **4** | `/va/sov-38alt-main-gate-fire` | `FIRE` | SOV 38ALT Main Gate | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-main-gate-fire -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **5** | `/va/sov-38alt-carpark-lot-1-illegal-parking` | `ILLEGAL_PARKING` | SOV 38ALT Carpark Lot 1 | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-carpark-lot-1-illegal-parking -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **6** | `/va/sov-38alt-l1-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L1 Lift Lobby | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l1-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **7** | `/va/sov-38alt-l4-corridor-o-s-war-room-loitering` | `LOITERING` | SOV 38ALT L4 Corridor o/s War Room | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l4-corridor-o-s-war-room-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **8** | `/va/sov-38alt-l4-interlock-loitering` | `LOITERING` | SOV 38ALT L4 Interlock | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l4-interlock-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **9** | `/va/sov-38alt-l5-corridor-loitering` | `LOITERING` | SOV 38ALT L5 Corridor | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l5-corridor-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **10** | `/va/sov-38alt-side-fencing-intrusion` | `INTRUSION` | SOV 38ALT Side Fencing | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-side-fencing-intrusion -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **11** | `/va/sov-38alt-side-fencing-smoking` | `SMOKING` | SOV 38ALT Side Fencing | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-side-fencing-smoking -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **12** | `/va/sov-38alt-side-fencing-fire` | `FIRE` | SOV 38ALT Side Fencing | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-side-fencing-fire -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **13** | `/va/sov-38alt-roof-top-loitering` | `LOITERING` | SOV 38ALT Roof Top | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-roof-top-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **14** | `/va/sov-38alt-l2-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L2 Lift Lobby | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l2-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **15** | `/va/sov-38alt-l3-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L3 Lift Lobby | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l3-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **16** | `/va/sov-38alt-l2-main-lobby-loitering` | `LOITERING` | SOV 38ALT L2 Main Lobby | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l2-main-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **17** | `/va/sov-38alt-l2-reception-loitering` | `LOITERING` | SOV 38ALT L2 Reception | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l2-reception-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **18** | `/va/sov-38alt-main-road-loitering` | `LOITERING` | SOV 38ALT Main Road | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-main-road-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **19** | `/va/sov-38alt-l6-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L6 Lift Lobby | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l6-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **20** | `/va/sov-38alt-l5-o-s-cyber-room-loitering` | `LOITERING` | SOV 38ALT L5 o/s Cyber Room | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-l5-o-s-cyber-room-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+| **21** | `/va/sov-38alt-main-gate-perimeter-intrusion` | `INTRUSION` | SOV 38ALT Main Gate Perimeter | `200 OK` | `curl -i -X GET http://localhost:8088/va/sov-38alt-main-gate-perimeter-intrusion -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"` |
+
+---
+
+### 9.4 Security & Access Control Boundary Tests
+
+Kong Gateway enforces strict authentication at the network perimeter via `basic-auth` and `acl` plugins. Verify that unauthorized traffic is stopped cold at the gateway without ever reaching the iMOPS backend.
+
+#### Test 4.1: Valid Basic Authentication Credentials (PASS)
+```bash
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+```
+**Expected Response:** `HTTP/1.1 200 OK` with JSON incident response.
+
+#### Test 4.2: Missing Authentication Header (REJECT)
+```bash
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding
+```
+**Expected Response:** `HTTP/1.1 401 Unauthorized`
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+#### Test 4.3: Invalid / Corrupted Credentials (REJECT)
+```bash
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "wrong_user:wrong_password"
+```
+**Expected Response:** `HTTP/1.1 401 Unauthorized`
+```json
+{
+  "message": "Invalid authentication credentials"
+}
+```
+
+#### Test 4.4: ACL Authorization Restriction (REJECT)
+If a consumer has valid Basic Auth credentials but does NOT belong to the `sicc_group` ACL:
+```bash
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "other_consumer@imops.local:some_password"
+```
+**Expected Response:** `HTTP/1.1 403 Forbidden`
+```json
+{
+  "message": "You cannot consume this service"
+}
+```
+
+---
+
+### 9.5 HTTP Method Translation & Negative Method Verification
+
+Camera hardware may trigger alerts via `GET` (web query) or `POST` (webhook push). Kong accepts both and normalizes them into upstream `POST` requests while rejecting non-supported HTTP verbs.
+
+#### Test 5.1: Camera `GET` Trigger Translation
+```bash
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+```
+* **Inbound to Kong:** `GET /va/sov-38alt-l4-icc-1-crowding` (No body)
+* **Outbound from Kong:** `POST /api/incidents/monitor` (Injected JSON payload & Live Timestamp)
+* **Result:** `HTTP/1.1 200 OK`
+
+#### Test 5.2: Camera `POST` Trigger Passthrough
+```bash
+curl -i -X POST http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+```
+* **Result:** `HTTP/1.1 200 OK`
+
+#### Test 5.3: Disallowed HTTP Verbs (`PUT`, `DELETE`, `PATCH`)
+```bash
+curl -i -X DELETE http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+```
+**Expected Response:** `HTTP/1.1 405 Method Not Allowed` or `HTTP/1.1 404 Not Found` (Routing rejects methods outside `["GET", "POST"]`).
+
+---
+
+### 9.6 Rate Limiting, Throttling & Header Verification
+
+Kong enforces a quota of **60 requests per minute** per consumer to safeguard iMOPS from camera alert flooding loops.
+
+#### Test 6.1: Burst Rate Limit Trigger (Returns HTTP 429)
+**Windows (PowerShell):**
 ```powershell
-1..65 | ForEach-Object { curl.exe -s -o /dev/null -w "%{http_code}\n" http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM" }
+1..65 | ForEach-Object { 
+    curl.exe -s -o /dev/null -w "%{http_code}`n" http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM" 
+}
 ```
-Requests 1–60 return `200 OK`. Request 61+ returns **`HTTP 429 Too Many Requests`**.
+**Linux / macOS (Bash):**
+```bash
+for i in {1..65}; do 
+    curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+done
+```
+* Requests 1 through 60 return: **`200`**
+* Request 61+ returns: **`429 Too Many Requests`** with response:
+  ```json
+  {
+    "message": "API rate limit exceeded"
+  }
+  ```
 
-### 4. How to Adjust or Customize Rate Limits
-
-By default, Kong Gateway enforces **60 requests per minute**. You can change this limit at any time with **zero downtime** and **no container restarts**.
-
-#### Via Kong Manager UI (`http://localhost:8002`) (Recommended):
-1. Open **[http://localhost:8002](http://localhost:8002)**.
-2. Go to **Gateway Services** ➔ click **`imops-sicc-incident-service`**.
-3. Go to the **Plugins** tab.
-4. Locate **`rate-limiting`** ➔ click the action menu (**`...`**) on the right ➔ click **Edit**.
-5. Change **`Minute`** to your desired limit (e.g. `120`, `300`).
-6. *(Optional)* Add a **`Second`** burst cap (e.g. `5` req/sec).
-7. Click **Save Changes** (takes effect immediately).
-
-#### Via Command Line (`curl`):
-```powershell
-# Retrieve plugin ID:
-$pluginId = (Invoke-RestMethod http://localhost:8001/services/imops-sicc-incident-service/plugins).data | 
-    Where-Object { $_.name -eq "rate-limiting" } | 
-    Select-Object -ExpandProperty id
-
-# Update to 120 requests/minute:
-curl.exe -i -X PATCH "http://localhost:8001/plugins/$pluginId" -d "config.minute=120"
+#### Test 6.2: Inspect Rate Limit Response Headers
+Inspect the rate limit tracking headers returned by Kong on every request:
+```bash
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM" | grep -i ratelimit
+```
+**Headers Output:**
+```http
+RateLimit-Limit: 60
+RateLimit-Remaining: 59
+RateLimit-Reset: 42
+X-RateLimit-Limit-Minute: 60
+X-RateLimit-Remaining-Minute: 59
 ```
 
-### Expected Success Response:
+#### Test 6.3: How to Adjust or Customize Rate Limits
+To change the threshold (e.g. increase to 120 req/min) with **zero downtime**:
+
+* **Via Kong Manager UI (`http://localhost:8002`):**
+  1. Open `http://localhost:8002` ➔ **Gateway Services** ➔ click `imops-sicc-incident-service`.
+  2. Go to **Plugins** ➔ find `rate-limiting` ➔ click **Edit**.
+  3. Modify **Minute** to `120` ➔ click **Save Changes**.
+
+* **Via Command Line (`curl`):**
+  ```powershell
+  # PowerShell: Retrieve plugin ID and update to 120 req/min
+  $pluginId = (Invoke-RestMethod http://localhost:8001/services/imops-sicc-incident-service/plugins).data | 
+      Where-Object { $_.name -eq "rate-limiting" } | Select-Object -ExpandProperty id
+  curl.exe -i -X PATCH "http://localhost:8001/plugins/$pluginId" -d "config.minute=120"
+  ```
+  ```bash
+  # Bash: Retrieve plugin ID and update to 120 req/min
+  PLUGIN_ID=$(curl -s http://localhost:8001/services/imops-sicc-incident-service/plugins | grep -o '"id":"[^"]*' | head -n 1 | cut -d'"' -f4)
+  curl -i -X PATCH "http://localhost:8001/plugins/$PLUGIN_ID" -d "config.minute=120"
+  ```
+
+---
+
+### 9.7 Dynamic Payload, Headers & Live Timestamp Verification
+
+Verify that Kong dynamically computes `os.time()`, attaches the JSON body, and sets the required HTTP headers before dispatching to the iMOPS upstream.
+
+#### Expected Successful iMOPS JSON Response:
+When Kong successfully transforms and forwards a trigger to `/api/incidents/monitor`, iMOPS returns `HTTP 200 OK` or `201 Created`:
 ```json
 {
   "success": true,
@@ -660,38 +903,144 @@ curl.exe -i -X PATCH "http://localhost:8001/plugins/$pluginId" -d "config.minute
     "status": "new",
     "priority": "medium",
     "site": "SOV @ 38ALT",
+    "incidentType": "CROWDING",
     "source": {
       "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING"
-    }
+    },
+    "metadata": {
+      "source": "vizzio_va",
+      "webhook": "crowding_sov_38alt_l4_icc_1",
+      "associatedCamera": "SOV 38ALT L4 ICC 1"
+    },
+    "createdAt": "2026-09-11T14:19:50.000Z"
+  }
+}
+```
+
+#### Verifying Dynamic Timestamp Freshness:
+The timestamp in the incident record corresponds to the exact second Kong received the request:
+```bash
+# Check current system timestamp vs timestamp recorded in incident:
+date +%s
+```
+
+---
+
+### 9.8 Downstream Backend & Database Verification
+
+Confirm that incident records triggered via Kong are persisted into the production database and broadcast across iMOPS operator workstations.
+
+#### 1. Direct MongoDB Query (Inside Container):
+Run on the server hosting the iMOPS backend:
+```bash
+docker exec -it imops-mongo mongosh imops --eval '
+  db.incidents.find({ site: "SOV @ 38ALT" })
+    .sort({ _id: -1 })
+    .limit(5)
+    .projection({ title: 1, incidentType: 1, site: 1, createdAt: 1, "metadata.webhook": 1 })
+'
+```
+**Expected Output:**
+```javascript
+[
+  {
+    _id: ObjectId("..."),
+    title: 'CROWDING: SOV 38ALT L4 ICC 1 VA CROWDING',
+    incidentType: 'CROWDING',
+    site: 'SOV @ 38ALT',
+    metadata: { webhook: 'crowding_sov_38alt_l4_icc_1' },
+    createdAt: ISODate("2026-09-11T...")
+  }
+]
+```
+
+#### 2. Real-Time Web UI Incident Monitor Audit:
+1. Log in to the iMOPS Web Portal at `http://<BACKEND_HOST_IP>:13000`.
+2. Navigate to **Incident Monitor** or **Operations Dashboard**.
+3. Fire a test alert using curl:
+   ```bash
+   curl -s -X GET http://localhost:8088/va/sov-38alt-side-fencing-fire -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+   ```
+4. Confirm the incident appears in real time on the dashboard with `site: SOV @ 38ALT` and `incidentType: FIRE`.
+
+---
+
+### 9.9 Fault Tolerance & Negative Edge Cases
+
+#### Test 9.1: Unmatched Ingress Route / Typo in URL (HTTP 404)
+```bash
+curl -i -X GET http://localhost:8088/va/invalid-camera-path \
+  -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+```
+**Expected Response:** `HTTP/1.1 404 Not Found`
+```json
+{
+  "message": "no Route matched with those values"
+}
+```
+
+#### Test 9.2: Upstream Backend Unreachable / Down (HTTP 502 / 504)
+If the downstream iMOPS container is stopped (`docker stop imops-backend`):
+```bash
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding \
+  -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+```
+**Expected Response:** `HTTP/1.1 502 Bad Gateway` or `HTTP/1.1 504 Gateway Timeout`
+```json
+{
+  "message": "An invalid response was received from the upstream server"
+}
+```
+
+#### Test 9.3: Kong Admin Health & Uptime Probe
+Verify Kong process status via the Admin API:
+```bash
+curl -i -X GET http://localhost:8001/status
+```
+**Expected Response:** `HTTP/1.1 200 OK`
+```json
+{
+  "server": {
+    "total_requests": 1420,
+    "connections_active": 1,
+    "connections_accepted": 1420,
+    "connections_handled": 1420,
+    "connections_reading": 0,
+    "connections_writing": 1,
+    "connections_waiting": 0
+  },
+  "database": {
+    "reachable": true
   }
 }
 ```
 
 ---
 
-### 5. CLI Verification Commands on `webapp` Server
+### 9.10 CLI Gateway Audit Commands on `webapp` Server
 
-When connected to the `webapp` terminal via SSH, run these commands to instantly audit Kong's live configuration:
+When connected to the `webapp` terminal via SSH, run these commands to instantly inspect Kong's live configuration:
 
 #### Linux / macOS (Bash with `jq`):
 ```bash
-# 1. Check all Services
+# 1. Audit all Services
 curl -s http://localhost:8001/services | jq -r '.data[] | "[\(.name)] -> http://\(.host):\(.port)\(.path)"'
 
-# 2. Check all Routes (Name, Paths & Service ID)
-curl -s http://localhost:8001/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", ")) | Service ID: \(.service.id)"'
+# 2. Audit all 21 Routes (Name, Paths & Service ID)
+curl -s http://localhost:8001/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", "))"'
 
 # 3. Check SICC Routes specifically
 curl -s http://localhost:8001/services/imops-sicc-incident-service/routes | jq -r '.data[] | "Route: \(.name) | Paths: \(.paths | join(", "))"'
 
-# 4. Check all Consumers (Username & ID)
+# 4. Check Consumer & Credentials
 curl -s http://localhost:8001/consumers | jq -r '.data[] | "Consumer: \(.username) (ID: \(.id))"'
-
-# 5. Check Consumer Credentials & Basic Auth
 curl -s http://localhost:8001/consumers/va_system_consumer/basic-auth | jq .
 
-# 6. Check Plugins on SICC Service
+# 5. Check Service-Level Plugins (basic-auth, rate-limiting, acl)
 curl -s http://localhost:8001/services/imops-sicc-incident-service/plugins | jq -r '.data[] | "Plugin: \(.name) (Enabled: \(.enabled))"'
+
+# 6. Check Route-Level Translator Plugins (post-function)
+curl -s http://localhost:8001/routes/va-sov-38alt-l4-icc-1-crowding/plugins | jq .
 ```
 
 #### Windows (PowerShell):
@@ -699,13 +1048,17 @@ curl -s http://localhost:8001/services/imops-sicc-incident-service/plugins | jq 
 # Check all Routes (Name, Paths & Service ID)
 (curl.exe -s http://localhost:8001/routes | ConvertFrom-Json).data | ForEach-Object { "Route: $($_.name) | Paths: $($_.paths -join ', ') | Service ID: $($_.service.id)" }
 
-# Check all Consumers (Username & ID)
+# Check Consumer & Credentials
 (curl.exe -s http://localhost:8001/consumers | ConvertFrom-Json).data | ForEach-Object { "Consumer: $($_.username) (ID: $($_.id))" }
+(curl.exe -s http://localhost:8001/consumers/va_system_consumer/basic-auth | ConvertFrom-Json).data | ForEach-Object { "User: $($_.username) | ID: $($_.id)" }
+
+# Check Service Plugins
+(curl.exe -s http://localhost:8001/services/imops-sicc-incident-service/plugins | ConvertFrom-Json).data | ForEach-Object { "Plugin: $($_.name) (Enabled: $($_.enabled))" }
 ```
 
 ---
 
-### 6. Accessing Kong Manager from Remote Workstation (`vg`)
+### 9.11 Accessing Kong Manager from Remote Workstation (`vg`)
 
 If accessing the Kong Manager UI from another machine (e.g. the `vg` appliance at `http://<WEBAPP_IP>:8002`), ensure `KONG_ADMIN_GUI_API_URL` in `docker-compose.yml` points to the `webapp` IP rather than `localhost`:
 
