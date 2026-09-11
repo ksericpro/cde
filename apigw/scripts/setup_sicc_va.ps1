@@ -1,14 +1,13 @@
 <#
 .SYNOPSIS
-    Automated Kong Gateway Setup Script for Project SICC Video Analytics (VA) Ingress.
+    Automated Kong Gateway Setup Script for Project SICC (SOV 38ALT) Video Analytics (VA) Ingress.
 .DESCRIPTION
     Creates / Updates:
     - Gateway Service: imops-sicc-incident-service (points to http://host.docker.internal:13000/api/incidents/monitor)
     - Service Plugins: basic-auth, rate-limiting (60 req/min), acl (sicc_group)
     - Consumer: va_system_consumer (credentials: vizzio@imops.local / xAJHkkm7m3V5MhtF0xGM)
-    - Routes + post-function dynamic translator plugins:
-      1. va-sicc-crowding-38alt   (/va/sov-38alt-crowding, /va/sicc-38alt-crowding, /api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1)
-      2. va-sicc-loitering-38alt  (/va/sov-38alt-loitering, /va/sicc-38alt-loitering, /api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby)
+    - 21 Routes + post-function dynamic translator plugins:
+      Endpoints: /va/sov-38alt-...
 #>
 
 param(
@@ -34,7 +33,7 @@ $siccPassword = "xAJHkkm7m3V5MhtF0xGM"
 $siccBase64Auth = "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
 
 Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "🚀 Starting SICC VA Ingress Setup on Kong Gateway" -ForegroundColor Cyan
+Write-Host "🚀 Starting SICC (SOV 38ALT) VA Ingress Setup on Kong Gateway" -ForegroundColor Cyan
 Write-Host "   Admin URL:    $adminUrl" -ForegroundColor Gray
 Write-Host "   Upstream URL: $targetUrl" -ForegroundColor Gray
 Write-Host "====================================================" -ForegroundColor Cyan
@@ -147,14 +146,24 @@ try {
     Write-Host "Notice while configuring credentials/ACL: $_" -ForegroundColor Yellow
 }
 
-# 4. Define the 2 SICC Routes & Dynamic Translation Payloads
-$routes = @(
+# Remove legacy pilot routes if present to avoid path collisions
+foreach ($legacyName in @("va-sicc-crowding-38alt", "va-sicc-loitering-38alt")) {
+    try {
+        $legacy = Invoke-RestMethod -Uri "$adminUrl/routes/$legacyName" -Method Get -ErrorAction SilentlyContinue
+        if ($legacy) {
+            Invoke-RestMethod -Uri "$adminUrl/routes/$legacyName" -Method Delete | Out-Null
+            Write-Host "Removed legacy route '$legacyName'." -ForegroundColor Gray
+        }
+    } catch {}
+}
+
+# 4. Define the 21 SICC (SOV 38ALT) Routes & Dynamic Translation Payloads
+$routes = @(,
     @{
-        Name = "va-sicc-crowding-38alt"
+        Name = "va-sov-38alt-l4-icc-1-crowding"
         Paths = @(
-            "/va/sov-38alt-crowding",
-            "/va/sicc-38alt-crowding",
-            "/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1"
+            "/va/sov-38alt-l4-icc-1-crowding",
+            "/va/sov-38alt-crowding"
         )
         DeviceName = "SOV 38ALT L4 ICC 1 VA CROWDING"
         IncidentType = "CROWDING"
@@ -162,20 +171,171 @@ $routes = @(
         Camera = "SOV 38ALT L4 ICC 1"
     },
     @{
-        Name = "va-sicc-loitering-38alt"
+        Name = "va-sov-38alt-l4-lift-lobby-loitering"
         Paths = @(
-            "/va/sov-38alt-loitering",
-            "/va/sicc-38alt-loitering",
-            "/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby"
+            "/va/sov-38alt-l4-lift-lobby-loitering",
+            "/va/sov-38alt-loitering"
         )
         DeviceName = "SOV 38ALT L4 LIFT LOBBY VA LOITERING"
         IncidentType = "LOITERING"
         Webhook = "loitering_sov_38alt_l4_lift_lobby"
         Camera = "SOV 38ALT L4 Lift Lobby"
+    },
+    @{
+        Name = "va-sov-38alt-main-gate-smoking"
+        Paths = @("/va/sov-38alt-main-gate-smoking")
+        DeviceName = "SOV 38ALT Main Gate VA SMOKING"
+        IncidentType = "SMOKING"
+        Webhook = "smoking_sov_38alt_main_gate"
+        Camera = "SOV 38ALT Main Gate"
+    },
+    @{
+        Name = "va-sov-38alt-main-gate-fire"
+        Paths = @("/va/sov-38alt-main-gate-fire")
+        DeviceName = "SOV 38ALT Main Gate VA FIRE"
+        IncidentType = "FIRE"
+        Webhook = "fire_sov_38alt_main_gate"
+        Camera = "SOV 38ALT Main Gate"
+    },
+    @{
+        Name = "va-sov-38alt-carpark-lot-1-illegal-parking"
+        Paths = @("/va/sov-38alt-carpark-lot-1-illegal-parking")
+        DeviceName = "SOV 38ALT Carpark Lot 1 VA ILLEGAL PARKING"
+        IncidentType = "ILLEGAL_PARKING"
+        Webhook = "illegal_parking_sov_38alt_carpark_lot_1"
+        Camera = "SOV 38ALT Carpark Lot 1"
+    },
+    @{
+        Name = "va-sov-38alt-l1-lift-lobby-loitering"
+        Paths = @("/va/sov-38alt-l1-lift-lobby-loitering")
+        DeviceName = "SOV 38ALT L1 Lift Lobby VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l1_lift_lobby"
+        Camera = "SOV 38ALT L1 Lift Lobby"
+    },
+    @{
+        Name = "va-sov-38alt-l4-corridor-o-s-war-room-loitering"
+        Paths = @("/va/sov-38alt-l4-corridor-o-s-war-room-loitering")
+        DeviceName = "SOV 38ALT L4 Corridor o/s War Room VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l4_corridor_o_s_war_room"
+        Camera = "SOV 38ALT L4 Corridor o/s War Room"
+    },
+    @{
+        Name = "va-sov-38alt-l4-interlock-loitering"
+        Paths = @("/va/sov-38alt-l4-interlock-loitering")
+        DeviceName = "SOV 38ALT L4 Interlock VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l4_interlock"
+        Camera = "SOV 38ALT L4 Interlock"
+    },
+    @{
+        Name = "va-sov-38alt-l5-corridor-loitering"
+        Paths = @("/va/sov-38alt-l5-corridor-loitering")
+        DeviceName = "SOV 38ALT L5 Corridor VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l5_corridor"
+        Camera = "SOV 38ALT L5 Corridor"
+    },
+    @{
+        Name = "va-sov-38alt-side-fencing-intrusion"
+        Paths = @("/va/sov-38alt-side-fencing-intrusion")
+        DeviceName = "SOV 38ALT Side Fencing VA INTRUSION"
+        IncidentType = "INTRUSION"
+        Webhook = "intrusion_sov_38alt_side_fencing"
+        Camera = "SOV 38ALT Side Fencing"
+    },
+    @{
+        Name = "va-sov-38alt-side-fencing-smoking"
+        Paths = @("/va/sov-38alt-side-fencing-smoking")
+        DeviceName = "SOV 38ALT Side Fencing VA SMOKING"
+        IncidentType = "SMOKING"
+        Webhook = "smoking_sov_38alt_side_fencing"
+        Camera = "SOV 38ALT Side Fencing"
+    },
+    @{
+        Name = "va-sov-38alt-side-fencing-fire"
+        Paths = @("/va/sov-38alt-side-fencing-fire")
+        DeviceName = "SOV 38ALT Side Fencing VA FIRE"
+        IncidentType = "FIRE"
+        Webhook = "fire_sov_38alt_side_fencing"
+        Camera = "SOV 38ALT Side Fencing"
+    },
+    @{
+        Name = "va-sov-38alt-roof-top-loitering"
+        Paths = @("/va/sov-38alt-roof-top-loitering")
+        DeviceName = "SOV 38ALT Roof Top VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_roof_top"
+        Camera = "SOV 38ALT Roof Top"
+    },
+    @{
+        Name = "va-sov-38alt-l2-lift-lobby-loitering"
+        Paths = @("/va/sov-38alt-l2-lift-lobby-loitering")
+        DeviceName = "SOV 38ALT L2 Lift Lobby VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l2_lift_lobby"
+        Camera = "SOV 38ALT L2 Lift Lobby"
+    },
+    @{
+        Name = "va-sov-38alt-l3-lift-lobby-loitering"
+        Paths = @("/va/sov-38alt-l3-lift-lobby-loitering")
+        DeviceName = "SOV_38ALT_L3_Lift_Lobby VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l3_lift_lobby"
+        Camera = "SOV 38ALT L3 Lift Lobby"
+    },
+    @{
+        Name = "va-sov-38alt-l2-main-lobby-loitering"
+        Paths = @("/va/sov-38alt-l2-main-lobby-loitering")
+        DeviceName = "SOV 38ALT L2 Main Lobby VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l2_main_lobby"
+        Camera = "SOV 38ALT L2 Main Lobby"
+    },
+    @{
+        Name = "va-sov-38alt-l2-reception-loitering"
+        Paths = @("/va/sov-38alt-l2-reception-loitering")
+        DeviceName = "SOV_38ALT_L2_Reception VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l2_reception"
+        Camera = "SOV 38ALT L2 Reception"
+    },
+    @{
+        Name = "va-sov-38alt-main-road-loitering"
+        Paths = @("/va/sov-38alt-main-road-loitering")
+        DeviceName = "SOV 38ALT Main Road VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_main_road"
+        Camera = "SOV 38ALT Main Road"
+    },
+    @{
+        Name = "va-sov-38alt-l6-lift-lobby-loitering"
+        Paths = @("/va/sov-38alt-l6-lift-lobby-loitering")
+        DeviceName = "SOV 38ALT L6 Lift Lobby VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l6_lift_lobby"
+        Camera = "SOV 38ALT L6 Lift Lobby"
+    },
+    @{
+        Name = "va-sov-38alt-l5-o-s-cyber-room-loitering"
+        Paths = @("/va/sov-38alt-l5-o-s-cyber-room-loitering")
+        DeviceName = "SOV 38ALT L5 o/s Cyber Room VA LOITERING"
+        IncidentType = "LOITERING"
+        Webhook = "loitering_sov_38alt_l5_o_s_cyber_room"
+        Camera = "SOV 38ALT L5 o/s Cyber Room"
+    },
+    @{
+        Name = "va-sov-38alt-main-gate-perimeter-intrusion"
+        Paths = @("/va/sov-38alt-main-gate-perimeter-intrusion")
+        DeviceName = "SOV 38ALT Main Gate Perimiter VA INTRUSION"
+        IncidentType = "INTRUSION"
+        Webhook = "intrusion_sov_38alt_main_gate_perimeter"
+        Camera = "SOV 38ALT Main Gate Perimeter"
     }
 )
 
-Write-Host "`n[4/5] Configuring SICC Routes & Translator Plugins..." -ForegroundColor Yellow
+Write-Host "`n[4/5] Configuring SICC Routes & Translator Plugins (Total: $($routes.Count))..." -ForegroundColor Yellow
 
 foreach ($r in $routes) {
     Write-Host "  -> Processing Route: $($r.Name)..." -ForegroundColor Cyan
@@ -210,7 +370,7 @@ local now = os.time()
 kong.service.request.set_method("POST")
 kong.service.request.set_header("Authorization", "$siccBase64Auth")
 kong.service.request.set_header("Content-Type", "application/json")
-local b = string.format('{"site":"SICC","deviceName":"$($r.DeviceName)","incidentType":"$($r.IncidentType)","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"$($r.Webhook)","associatedCamera":"$($r.Camera)"}}', now)
+local b = string.format('{"site":"SOV 38ALT","deviceName":"$($r.DeviceName)","incidentType":"$($r.IncidentType)","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"$($r.Webhook)","associatedCamera":"$($r.Camera)"}}', now)
 kong.service.request.set_raw_body(b)
 "@
 
@@ -243,7 +403,7 @@ kong.service.request.set_raw_body(b)
 
 Write-Host "`n[5/5] Verification & Summary:" -ForegroundColor Yellow
 Write-Host "====================================================" -ForegroundColor Green
-Write-Host "✅ SICC VA Configuration Successfully Applied!" -ForegroundColor Green
+Write-Host "✅ SICC (SOV 38ALT) VA Configuration Successfully Applied! ($($routes.Count) routes)" -ForegroundColor Green
 Write-Host "====================================================" -ForegroundColor Green
 Write-Host "Service:   $serviceName -> $targetUrl"
 Write-Host "Consumer:  $consumerName ($siccUsername)"
@@ -254,4 +414,4 @@ foreach ($r in $routes) {
     }
 }
 Write-Host "`nExample Test Command:"
-Write-Host 'curl.exe -i -X GET http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"' -ForegroundColor Yellow
+Write-Host 'curl.exe -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"' -ForegroundColor Yellow

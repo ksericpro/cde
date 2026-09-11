@@ -4,13 +4,15 @@ xAJHkkm7m3V5MhtF0xGM
 
 BACKEND_API = http://10.65.51.252:8088
 
-# 1. GET/POST {{BACKEND_API}}/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1
+
+
+# 1. GET/POST /va/sov-38alt-l4-icc-1-crowding
 
 upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SICC",
+  "site": "SOV 38ALT",
   "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING",
   "incidentType": "CROWDING",
   "mode": "incident",
@@ -23,19 +25,380 @@ upstream:
 
 
 
-# 2. GET/POST {{BACKEND_API}}/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby
+# 2. GET/POST /va/sov-38alt-l4-lift-lobby-loitering
 
 upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SICC",
-  "deviceName": "SOV 38ALT L4 LIFT LOBBY VA LOITERING",  
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L4 LIFT LOBBY VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
   "metadata": {
     "source": "vizzio_va",
     "webhook": "loitering_sov_38alt_l4_lift_lobby",
     "associatedCamera": "SOV 38ALT L4 Lift Lobby"
+  }
+}
+
+
+
+# 3. GET/POST /va/sov-38alt-main-gate-smoking
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Main Gate VA SMOKING",
+  "incidentType": "SMOKING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "smoking_sov_38alt_main_gate",
+    "associatedCamera": "SOV 38ALT Main Gate"
+  }
+}
+
+
+
+# 4. GET/POST /va/sov-38alt-main-gate-fire
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Main Gate VA FIRE",
+  "incidentType": "FIRE",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "fire_sov_38alt_main_gate",
+    "associatedCamera": "SOV 38ALT Main Gate"
+  }
+}
+
+
+
+# 5. GET/POST /va/sov-38alt-carpark-lot-1-illegal-parking
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Carpark Lot 1 VA ILLEGAL PARKING",
+  "incidentType": "ILLEGAL_PARKING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "illegal_parking_sov_38alt_carpark_lot_1",
+    "associatedCamera": "SOV 38ALT Carpark Lot 1"
+  }
+}
+
+
+
+# 6. GET/POST /va/sov-38alt-l1-lift-lobby-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L1 Lift Lobby VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l1_lift_lobby",
+    "associatedCamera": "SOV 38ALT L1 Lift Lobby"
+  }
+}
+
+
+
+# 7. GET/POST /va/sov-38alt-l4-corridor-o-s-war-room-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L4 Corridor o/s War Room VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l4_corridor_o_s_war_room",
+    "associatedCamera": "SOV 38ALT L4 Corridor o/s War Room"
+  }
+}
+
+
+
+# 8. GET/POST /va/sov-38alt-l4-interlock-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L4 Interlock VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l4_interlock",
+    "associatedCamera": "SOV 38ALT L4 Interlock"
+  }
+}
+
+
+
+# 9. GET/POST /va/sov-38alt-l5-corridor-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L5 Corridor VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l5_corridor",
+    "associatedCamera": "SOV 38ALT L5 Corridor"
+  }
+}
+
+
+
+# 10. GET/POST /va/sov-38alt-side-fencing-intrusion
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Side Fencing VA INTRUSION",
+  "incidentType": "INTRUSION",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "intrusion_sov_38alt_side_fencing",
+    "associatedCamera": "SOV 38ALT Side Fencing"
+  }
+}
+
+
+
+# 11. GET/POST /va/sov-38alt-side-fencing-smoking
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Side Fencing VA SMOKING",
+  "incidentType": "SMOKING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "smoking_sov_38alt_side_fencing",
+    "associatedCamera": "SOV 38ALT Side Fencing"
+  }
+}
+
+
+
+# 12. GET/POST /va/sov-38alt-side-fencing-fire
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Side Fencing VA FIRE",
+  "incidentType": "FIRE",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "fire_sov_38alt_side_fencing",
+    "associatedCamera": "SOV 38ALT Side Fencing"
+  }
+}
+
+
+
+# 13. GET/POST /va/sov-38alt-roof-top-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Roof Top VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_roof_top",
+    "associatedCamera": "SOV 38ALT Roof Top"
+  }
+}
+
+
+
+# 14. GET/POST /va/sov-38alt-l2-lift-lobby-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L2 Lift Lobby VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l2_lift_lobby",
+    "associatedCamera": "SOV 38ALT L2 Lift Lobby"
+  }
+}
+
+
+
+# 15. GET/POST /va/sov-38alt-l3-lift-lobby-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV_38ALT_L3_Lift_Lobby VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l3_lift_lobby",
+    "associatedCamera": "SOV 38ALT L3 Lift Lobby"
+  }
+}
+
+
+
+# 16. GET/POST /va/sov-38alt-l2-main-lobby-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L2 Main Lobby VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l2_main_lobby",
+    "associatedCamera": "SOV 38ALT L2 Main Lobby"
+  }
+}
+
+
+
+# 17. GET/POST /va/sov-38alt-l2-reception-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV_38ALT_L2_Reception VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l2_reception",
+    "associatedCamera": "SOV 38ALT L2 Reception"
+  }
+}
+
+
+
+# 18. GET/POST /va/sov-38alt-main-road-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Main Road VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_main_road",
+    "associatedCamera": "SOV 38ALT Main Road"
+  }
+}
+
+
+
+# 19. GET/POST /va/sov-38alt-l6-lift-lobby-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L6 Lift Lobby VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l6_lift_lobby",
+    "associatedCamera": "SOV 38ALT L6 Lift Lobby"
+  }
+}
+
+
+
+# 20. GET/POST /va/sov-38alt-l5-o-s-cyber-room-loitering
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT L5 o/s Cyber Room VA LOITERING",
+  "incidentType": "LOITERING",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "loitering_sov_38alt_l5_o_s_cyber_room",
+    "associatedCamera": "SOV 38ALT L5 o/s Cyber Room"
+  }
+}
+
+
+
+# 21. GET/POST /va/sov-38alt-main-gate-perimeter-intrusion
+
+upstream:
+(POST {{BACKEND_API}}/api/incidents/monitor):
+
+{
+  "site": "SOV 38ALT",
+  "deviceName": "SOV 38ALT Main Gate Perimiter VA INTRUSION",
+  "incidentType": "INTRUSION",
+  "mode": "incident",
+  "metadata": {
+    "source": "vizzio_va",
+    "webhook": "intrusion_sov_38alt_main_gate_perimeter",
+    "associatedCamera": "SOV 38ALT Main Gate Perimeter"
   }
 }

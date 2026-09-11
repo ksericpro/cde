@@ -27,8 +27,31 @@ Both **Windows (PowerShell)** and **Linux / macOS (Bash)** commands are provided
 5. **Zero iMOPS Code Changes:** When new VAs or cameras come along, you only add new Routes in Kong on the fly.
 
 ### Target Virtual Assistants (VAs)
-1. **Crowding VA:** `SOV 38ALT L4 ICC 1 VA CROWDING`
-2. **Loitering VA:** `SOV 38ALT L4 LIFT LOBBY VA LOITERING`
+The gateway provides dynamic translation for all 21 production Video Analytics (VA) cameras at **SOV 38ALT**:
+
+| # | Public Ingress Route Path | Incident Type | Camera / Sensor | Webhook Identifier |
+|---|---|---|---|---|
+| **1** | `GET/POST /va/sov-38alt-l4-icc-1-crowding` | `CROWDING` | SOV 38ALT L4 ICC 1 | `crowding_sov_38alt_l4_icc_1` |
+| **2** | `GET/POST /va/sov-38alt-l4-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L4 Lift Lobby | `loitering_sov_38alt_l4_lift_lobby` |
+| **3** | `GET/POST /va/sov-38alt-main-gate-smoking` | `SMOKING` | SOV 38ALT Main Gate | `smoking_sov_38alt_main_gate` |
+| **4** | `GET/POST /va/sov-38alt-main-gate-fire` | `FIRE` | SOV 38ALT Main Gate | `fire_sov_38alt_main_gate` |
+| **5** | `GET/POST /va/sov-38alt-carpark-lot-1-illegal-parking` | `ILLEGAL_PARKING` | SOV 38ALT Carpark Lot 1 | `illegal_parking_sov_38alt_carpark_lot_1` |
+| **6** | `GET/POST /va/sov-38alt-l1-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L1 Lift Lobby | `loitering_sov_38alt_l1_lift_lobby` |
+| **7** | `GET/POST /va/sov-38alt-l4-corridor-o-s-war-room-loitering` | `LOITERING` | SOV 38ALT L4 Corridor o/s War Room | `loitering_sov_38alt_l4_corridor_o_s_war_room` |
+| **8** | `GET/POST /va/sov-38alt-l4-interlock-loitering` | `LOITERING` | SOV 38ALT L4 Interlock | `loitering_sov_38alt_l4_interlock` |
+| **9** | `GET/POST /va/sov-38alt-l5-corridor-loitering` | `LOITERING` | SOV 38ALT L5 Corridor | `loitering_sov_38alt_l5_corridor` |
+| **10** | `GET/POST /va/sov-38alt-side-fencing-intrusion` | `INTRUSION` | SOV 38ALT Side Fencing | `intrusion_sov_38alt_side_fencing` |
+| **11** | `GET/POST /va/sov-38alt-side-fencing-smoking` | `SMOKING` | SOV 38ALT Side Fencing | `smoking_sov_38alt_side_fencing` |
+| **12** | `GET/POST /va/sov-38alt-side-fencing-fire` | `FIRE` | SOV 38ALT Side Fencing | `fire_sov_38alt_side_fencing` |
+| **13** | `GET/POST /va/sov-38alt-roof-top-loitering` | `LOITERING` | SOV 38ALT Roof Top | `loitering_sov_38alt_roof_top` |
+| **14** | `GET/POST /va/sov-38alt-l2-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L2 Lift Lobby | `loitering_sov_38alt_l2_lift_lobby` |
+| **15** | `GET/POST /va/sov-38alt-l3-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L3 Lift Lobby | `loitering_sov_38alt_l3_lift_lobby` |
+| **16** | `GET/POST /va/sov-38alt-l2-main-lobby-loitering` | `LOITERING` | SOV 38ALT L2 Main Lobby | `loitering_sov_38alt_l2_main_lobby` |
+| **17** | `GET/POST /va/sov-38alt-l2-reception-loitering` | `LOITERING` | SOV 38ALT L2 Reception | `loitering_sov_38alt_l2_reception` |
+| **18** | `GET/POST /va/sov-38alt-main-road-loitering` | `LOITERING` | SOV 38ALT Main Road | `loitering_sov_38alt_main_road` |
+| **19** | `GET/POST /va/sov-38alt-l6-lift-lobby-loitering` | `LOITERING` | SOV 38ALT L6 Lift Lobby | `loitering_sov_38alt_l6_lift_lobby` |
+| **20** | `GET/POST /va/sov-38alt-l5-o-s-cyber-room-loitering` | `LOITERING` | SOV 38ALT L5 o/s Cyber Room | `loitering_sov_38alt_l5_o_s_cyber_room` |
+| **21** | `GET/POST /va/sov-38alt-main-gate-perimeter-intrusion` | `INTRUSION` | SOV 38ALT Main Gate Perimeter | `intrusion_sov_38alt_main_gate_perimeter` |
 
 ---
 
@@ -41,7 +64,7 @@ sequenceDiagram
     participant Kong as Kong Gateway (Port 8088/8443)
     participant Monitor as iMOPS Monitor (http://<BACKEND_HOST_IP>:13000/api/incidents/monitor)
 
-    VA->>Kong: GET or POST /va/sov-38alt-crowding (Basic Auth)
+    VA->>Kong: GET or POST /va/sov-38alt-l4-icc-1-crowding (Basic Auth)
     Note over Kong: 1. Authorize camera (Basic Auth)<br/>2. Apply Rate Limit (60 req/min)<br/>3. Mutate method to POST<br/>4. Preserve Authorization: Basic <base64><br/>5. Inject Content-Type: application/json<br/>6. Inject Live Timestamp & Incident JSON
     Kong->>Monitor: POST /api/incidents/monitor (Basic Auth + JSON Body)
     Monitor-->>Kong: HTTP 200 OK (Incident Created & Broadcast)
@@ -78,7 +101,7 @@ Kong dynamically transforms incoming camera triggers into the full iMOPS inciden
 ---
 
 ### 4.2 Route 1: Crowding VA Mapping Rule
-* **External Public Route:** `GET` or `POST` `http://<KONG_IP>:8088/va/sov-38alt-crowding`
+* **External Public Route:** `GET` or `POST` `http://<KONG_IP>:8088/va/sov-38alt-l4-icc-1-crowding` (alias: `/va/sov-38alt-crowding`)
 * **Destination Upstream:** `POST http://host.docker.internal:13000/api/incidents/monitor`
 * **Headers to Upstream:**
   ```http
@@ -88,7 +111,7 @@ Kong dynamically transforms incoming camera triggers into the full iMOPS inciden
 * **Generated JSON Payload:**
   ```json
   {
-    "site": "SICC",
+    "site": "SOV 38ALT",
     "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING",
     "incidentType": "CROWDING",
     "timestamp": 1782353500,
@@ -104,7 +127,7 @@ Kong dynamically transforms incoming camera triggers into the full iMOPS inciden
 ---
 
 ### 4.3 Route 2: Loitering VA Mapping Rule
-* **External Public Route:** `GET` or `POST` `http://<KONG_IP>:8088/va/sov-38alt-loitering`
+* **External Public Route:** `GET` or `POST` `http://<KONG_IP>:8088/va/sov-38alt-l4-lift-lobby-loitering` (alias: `/va/sov-38alt-loitering`)
 * **Destination Upstream:** `POST http://host.docker.internal:13000/api/incidents/monitor`
 * **Headers to Upstream:**
   ```http
@@ -114,7 +137,7 @@ Kong dynamically transforms incoming camera triggers into the full iMOPS inciden
 * **Generated JSON Payload:**
   ```json
   {
-    "site": "SICC",
+    "site": "SOV 38ALT",
     "deviceName": "SOV 38ALT L4 LIFT LOBBY VA LOITERING",
     "incidentType": "LOITERING",
     "timestamp": 1782353500,
@@ -148,8 +171,7 @@ Automates the complete end-to-end configuration:
 * **Service Plugins:** `basic-auth` (hide_credentials: false), `rate-limiting` (60 req/min), `acl` (`sicc_group`)
 * **Consumer:** `va_system_consumer` (`vizzio@imops.local` / `xAJHkkm7m3V5MhtF0xGM`)
 * **Routes & Dynamic JSON Translators (`post-function`):**
-  1. `va-sicc-crowding-38alt` (`/va/sov-38alt-crowding`, `/va/sicc-38alt-crowding`, `/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1`)
-  2. `va-sicc-loitering-38alt` (`/va/sov-38alt-loitering`, `/va/sicc-38alt-loitering`, `/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby`)
+  Configures all 21 distinct routes (`/va/sov-38alt-...`) mapped to the respective camera sensor and incident type, including aliases for routes 1 and 2.
 
 #### How to Run (Linux / macOS):
 ```bash
@@ -344,7 +366,7 @@ local now = os.time()
 kong.service.request.set_method("POST")
 kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
 kong.service.request.set_header("Content-Type", "application/json")
-local b = string.format('{"site":"SICC","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
+local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
 kong.service.request.set_raw_body(b)
 '@
 
@@ -395,7 +417,7 @@ local now = os.time()
 kong.service.request.set_method("POST")
 kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
 kong.service.request.set_header("Content-Type", "application/json")
-local b = string.format('{"site":"SICC","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
+local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
 kong.service.request.set_raw_body(b)
 '@
 
@@ -444,7 +466,7 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
      kong.service.request.set_method("POST")
      kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
      kong.service.request.set_header("Content-Type", "application/json")
-     local b = string.format('{"site":"SICC","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
+     local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
      kong.service.request.set_raw_body(b)
      ```
    - Click **Save**.
@@ -460,7 +482,7 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
      kong.service.request.set_method("POST")
      kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
      kong.service.request.set_header("Content-Type", "application/json")
-     local b = string.format('{"site":"SICC","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
+     local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
      kong.service.request.set_raw_body(b)
      ```
    - Click **Save**.
@@ -576,25 +598,25 @@ Verify both `GET` and `POST` triggers through Kong on port `8088`:
 ### 1. Test Crowding VA
 ```powershell
 # Windows (GET or POST)
-curl.exe -i -X GET http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl.exe -i -X POST http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl.exe -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl.exe -i -X POST http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
 ```
 ```bash
 # Linux / macOS (GET or POST)
-curl -i -X GET http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl -i -X POST http://localhost:8088/va/sov-38alt-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl -i -X POST http://localhost:8088/va/sov-38alt-l4-icc-1-crowding -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
 ```
 
 ### 2. Test Loitering VA
 ```powershell
 # Windows (GET or POST)
-curl.exe -i -X GET http://localhost:8088/va/sov-38alt-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl.exe -i -X POST http://localhost:8088/va/sov-38alt-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl.exe -i -X GET http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl.exe -i -X POST http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
 ```
 ```bash
 # Linux / macOS (GET or POST)
-curl -i -X GET http://localhost:8088/va/sov-38alt-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
-curl -i -X POST http://localhost:8088/va/sov-38alt-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl -i -X GET http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+curl -i -X POST http://localhost:8088/va/sov-38alt-l4-lift-lobby-loitering -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
 ```
 
 ### 3. Verify Rate Limiting / Throttling (Burst Protection)
@@ -637,7 +659,7 @@ curl.exe -i -X PATCH "http://localhost:8001/plugins/$pluginId" -d "config.minute
     "title": "CROWDING: SOV 38ALT L4 ICC 1 VA CROWDING",
     "status": "new",
     "priority": "medium",
-    "site": "SICC",
+    "site": "SOV 38ALT",
     "source": {
       "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING"
     }

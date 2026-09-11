@@ -207,7 +207,7 @@ Kong Gateway acts as the perimeter **Authorizer, Rate-Limiter, and Dynamic Reque
 
 | Service Name | Site | Consumer | Upstream Target | Ingress Routes | Incident Type | Guide |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`imops-sicc-incident-service`** | SICC | `va_system_consumer` (`vizzio@imops.local`) | `http://host.docker.internal:13000/api/incidents/monitor` | • `/va/sov-38alt-crowding`<br/>• `/va/sov-38alt-loitering` | • `CROWDING`<br/>• `LOITERING` | [SICC Implementation Guide](file:///c:/Projects/cde/apigw/docs/VA_SICC_Kong_Gateway_Implementation.md) |
+| **`imops-sicc-incident-service`** | SOV 38ALT | `va_system_consumer` (`vizzio@imops.local`) | `http://host.docker.internal:13000/api/incidents/monitor` | 21 Ingress Routes (`/va/sov-38alt-...`) | • `CROWDING`<br/>• `LOITERING`<br/>• `SMOKING`<br/>• `FIRE`<br/>• `ILLEGAL_PARKING`<br/>• `INTRUSION` | [SICC Implementation Guide](file:///c:/Projects/cde/apigw/docs/VA_SICC_Kong_Gateway_Implementation.md) |
 | **`imops-dors-incident-service`** | DORS | `va_dors_consumer` (`dors_user@isems.com`) | `http://host.docker.internal:13000/api/incidents/monitor` | • `/va/dors-dop-c02-cyclist`<br/>• `/va/dors-waiting-c03-cyclist`<br/>• `/va/dors-dop-c01-illegal`<br/>• `/va/dors-dop-c02-illegal` | • `CYCLIST_GATHERING`<br/>• `ILLEGAL_PARKING` | [DORS Implementation Guide](file:///c:/Projects/cde/apigw/docs/VA_DORS_Kong_Gateway_Implementation.md) |
 
 ### Automated Setup Scripts
@@ -364,9 +364,8 @@ Automates creation of:
 * **Gateway Service:** `imops-sicc-incident-service`
 * **Service Plugins:** `basic-auth` (`hide_credentials: false`), `rate-limiting` (60 req/min), `acl` (`sicc_group`)
 * **Consumer:** `va_system_consumer` (`vizzio@imops.local` / `xAJHkkm7m3V5MhtF0xGM`)
-* **Routes with dynamic JSON incident translators (`post-function`):**
-  * `va-sicc-crowding-38alt` (`/va/sov-38alt-crowding`, `/va/sicc-38alt-crowding`, `/api/incidents/translate/vizzio/va/crowding_sov_38alt_l4_icc_1`)
-  * `va-sicc-loitering-38alt` (`/va/sov-38alt-loitering`, `/va/sicc-38alt-loitering`, `/api/incidents/translate/vizzio/va/loitering_sov_38alt_l4_lift_lobby`)
+* **21 Routes with dynamic JSON incident translators (`post-function`):**
+  * Configures all 21 `/va/sov-38alt-...` routes mapping each edge camera to its respective incident type and live timestamped payload.
 
 **Usage (with Upstream Host Parameter):**
 ```bash
