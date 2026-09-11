@@ -111,7 +111,7 @@ Kong dynamically transforms incoming camera triggers into the full iMOPS inciden
 * **Generated JSON Payload:**
   ```json
   {
-    "site": "SOV 38ALT",
+    "site": "SOV @ 38ALT",
     "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING",
     "incidentType": "CROWDING",
     "timestamp": 1782353500,
@@ -137,7 +137,7 @@ Kong dynamically transforms incoming camera triggers into the full iMOPS inciden
 * **Generated JSON Payload:**
   ```json
   {
-    "site": "SOV 38ALT",
+    "site": "SOV @ 38ALT",
     "deviceName": "SOV 38ALT L4 LIFT LOBBY VA LOITERING",
     "incidentType": "LOITERING",
     "timestamp": 1782353500,
@@ -366,7 +366,7 @@ local now = os.time()
 kong.service.request.set_method("POST")
 kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
 kong.service.request.set_header("Content-Type", "application/json")
-local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
+local b = string.format('{"site":"SOV @ 38ALT","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
 kong.service.request.set_raw_body(b)
 '@
 
@@ -417,7 +417,7 @@ local now = os.time()
 kong.service.request.set_method("POST")
 kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
 kong.service.request.set_header("Content-Type", "application/json")
-local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
+local b = string.format('{"site":"SOV @ 38ALT","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
 kong.service.request.set_raw_body(b)
 '@
 
@@ -466,7 +466,7 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
      kong.service.request.set_method("POST")
      kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
      kong.service.request.set_header("Content-Type", "application/json")
-     local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
+     local b = string.format('{"site":"SOV @ 38ALT","deviceName":"SOV 38ALT L4 ICC 1 VA CROWDING","incidentType":"CROWDING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"crowding_sov_38alt_l4_icc_1","associatedCamera":"SOV 38ALT L4 ICC 1"}}', now)
      kong.service.request.set_raw_body(b)
      ```
    - Click **Save**.
@@ -482,7 +482,7 @@ curl -i -X POST http://localhost:8001/routes/va-loitering-sov-38alt/plugins \
      kong.service.request.set_method("POST")
      kong.service.request.set_header("Authorization", "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN")
      kong.service.request.set_header("Content-Type", "application/json")
-     local b = string.format('{"site":"SOV 38ALT","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
+     local b = string.format('{"site":"SOV @ 38ALT","deviceName":"SOV 38ALT L4 LIFT LOBBY VA LOITERING","incidentType":"LOITERING","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"loitering_sov_38alt_l4_lift_lobby","associatedCamera":"SOV 38ALT L4 Lift Lobby"}}', now)
      kong.service.request.set_raw_body(b)
      ```
    - Click **Save**.
@@ -659,7 +659,7 @@ curl.exe -i -X PATCH "http://localhost:8001/plugins/$pluginId" -d "config.minute
     "title": "CROWDING: SOV 38ALT L4 ICC 1 VA CROWDING",
     "status": "new",
     "priority": "medium",
-    "site": "SOV 38ALT",
+    "site": "SOV @ 38ALT",
     "source": {
       "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING"
     }

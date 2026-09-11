@@ -370,7 +370,7 @@ local now = os.time()
 kong.service.request.set_method("POST")
 kong.service.request.set_header("Authorization", "$siccBase64Auth")
 kong.service.request.set_header("Content-Type", "application/json")
-local b = string.format('{"site":"SOV 38ALT","deviceName":"$($r.DeviceName)","incidentType":"$($r.IncidentType)","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"$($r.Webhook)","associatedCamera":"$($r.Camera)"}}', now)
+local b = string.format('{"site":"SOV @ 38ALT","deviceName":"$($r.DeviceName)","incidentType":"$($r.IncidentType)","timestamp":%d,"mode":"incident","metadata":{"source":"vizzio_va","webhook":"$($r.Webhook)","associatedCamera":"$($r.Camera)"}}', now)
 kong.service.request.set_raw_body(b)
 "@
 

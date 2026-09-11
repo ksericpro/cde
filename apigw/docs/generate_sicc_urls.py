@@ -93,7 +93,7 @@ upstream:
 (POST {{{{BACKEND_API}}}}/api/incidents/monitor):
 
 {{
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "{e['deviceName']}",
   "incidentType": "{e['incidentType']}",
   "mode": "incident",

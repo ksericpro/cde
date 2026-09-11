@@ -12,7 +12,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L4 ICC 1 VA CROWDING",
   "incidentType": "CROWDING",
   "mode": "incident",
@@ -31,7 +31,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L4 LIFT LOBBY VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -50,7 +50,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Main Gate VA SMOKING",
   "incidentType": "SMOKING",
   "mode": "incident",
@@ -69,7 +69,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Main Gate VA FIRE",
   "incidentType": "FIRE",
   "mode": "incident",
@@ -88,7 +88,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Carpark Lot 1 VA ILLEGAL PARKING",
   "incidentType": "ILLEGAL_PARKING",
   "mode": "incident",
@@ -107,7 +107,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L1 Lift Lobby VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -126,7 +126,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L4 Corridor o/s War Room VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -145,7 +145,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L4 Interlock VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -164,7 +164,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L5 Corridor VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -183,7 +183,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Side Fencing VA INTRUSION",
   "incidentType": "INTRUSION",
   "mode": "incident",
@@ -202,7 +202,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Side Fencing VA SMOKING",
   "incidentType": "SMOKING",
   "mode": "incident",
@@ -221,7 +221,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Side Fencing VA FIRE",
   "incidentType": "FIRE",
   "mode": "incident",
@@ -240,7 +240,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Roof Top VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -259,7 +259,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L2 Lift Lobby VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -278,7 +278,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV_38ALT_L3_Lift_Lobby VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -297,7 +297,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L2 Main Lobby VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -316,7 +316,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV_38ALT_L2_Reception VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -335,7 +335,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Main Road VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -354,7 +354,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L6 Lift Lobby VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -373,7 +373,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT L5 o/s Cyber Room VA LOITERING",
   "incidentType": "LOITERING",
   "mode": "incident",
@@ -392,7 +392,7 @@ upstream:
 (POST {{BACKEND_API}}/api/incidents/monitor):
 
 {
-  "site": "SOV 38ALT",
+  "site": "SOV @ 38ALT",
   "deviceName": "SOV 38ALT Main Gate Perimiter VA INTRUSION",
   "incidentType": "INTRUSION",
   "mode": "incident",
