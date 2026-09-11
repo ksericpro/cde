@@ -1,22 +1,54 @@
 # n8n Workflow Ingestion Engine (CDE)
 
-This module deploys **n8n** as the primary Orchestration & Ingestion Engine for the Common Data Environment (CDE), referenced from the enterprise setup in `C:\projects\ZAARR-DTE\taylor-imops-lite`.
+This module deploys **n8n** alongside an **SSL-terminating Nginx reverse proxy** as the primary Orchestration & Ingestion Engine for the Common Data Environment (CDE), following the enterprise setup in `C:\Projects\ZAARR-DTE\taylor-imops-lite`.
 
 ---
 
-## Port Allocations & Access
+## Architecture Overview
 
-| Service | Port | Description | URL |
-| :--- | :--- | :--- | :--- |
-| **n8n Web UI / API** | **`5678`** | Visual Workflow Designer & Webhook receiver | **[http://localhost:5678](http://localhost:5678)** |
-| **Via Kong Gateway** | **`8088`** | Public ingress reverse-proxied through Kong | `http://localhost:8088/n8n/` |
+```
+                                      +---------------------------------------------+
+                                      |              cde-network                    |
+  Browser / Web App                   |                                             |
+  https://localhost:5678              |   +-------------------+                     |
+  ------------------------> [Port 5678] ->|     n8n-proxy     |                     |
+                                      |   |   (Nginx Alpine)  |                     |
+                                      |   +---------+---------+                     |
+                                      |             | proxy_pass http://n8n:5678    |
+                                      |             v                               |
+                                      |   +-------------------+                     |
+                                      |   |    n8n-server     |                     |
+                                      |   | (Workflow Engine) |                     |
+                                      |   +-------------------+                     |
+                                      +---------------------------------------------+
+```
+
+### Key Features
+1. **SSL Termination**: Nginx terminates HTTPS using self-signed TLS certificates (`docker/ssl`).
+2. **Branded Theme & Logo Injection**: Injects `docker/custom-theme.css` into the n8n UI on the fly via Nginx `sub_filter`, displaying the custom **Loop Workflow Engine** logo and applying the dark slate/teal palette while hiding unwanted enterprise/cloud upsell menus.
+3. **iFrame Embedding**: Strips `X-Frame-Options` and rewrites cookies with `SameSite=None; Secure` so n8n can be embedded seamlessly in CDE web portal dashboards without cross-origin blocking.
+4. **WebSocket & SSE Forwarding**: Full streaming support for live execution canvas updates.
+
+---
+
+## Port Allocations & Endpoints
+
+| Service | Port | Protocol | Description | URL |
+| :--- | :--- | :--- | :--- | :--- |
+| **n8n Automation Control Panel** | **`5678`** | **HTTPS** | Web UI with custom Loop branding | **[https://localhost:5678](https://localhost:5678)** |
+| **Webhook Receiver** | **`5678`** | **HTTPS** | Workflow webhook listener | `https://localhost:5678/webhook/...` |
+| **Via Kong Gateway** | **`8088`** | HTTP | Public ingress reverse-proxied through Kong | `http://localhost:8088/n8n/` |
+
+> [!NOTE]
+> **Browser Security Notice (HTTPS)**:
+> When opening `https://localhost:5678` for the first time, your browser may show a self-signed certificate warning (*"Your connection is not private"*). Click **Advanced $\rightarrow$ Proceed to localhost (unsafe)** to continue.
 
 ---
 
 ## Quick Start
 
-### 1. Launch the n8n Container
-Run the following from the `n8n` directory:
+### 1. Launch Containers
+From the `c:\Projects\cde\n8n` directory:
 
 ```bash
 docker compose up -d
@@ -26,75 +58,52 @@ docker compose up -d
 ```bash
 docker compose ps
 ```
-The container `cde-n8n` should report status `Up`.
+Both `n8n-server` and `n8n-proxy` should report status `Up`.
 
-Check the health endpoint:
+Check health via curl:
 ```bash
-curl.exe http://localhost:5678/healthz
+curl.exe -k https://localhost:5678/healthz
 ```
 Expected output:
 ```json
 {"status":"ok"}
 ```
 
-### 3. Open the Workflow Editor
-Open **[http://localhost:5678](http://localhost:5678)** in your browser:
-1. Complete the one-time owner account setup (email & password).
-2. You will be redirected to the n8n workflow canvas.
-
 ---
 
-## Connecting Kong Gateway to n8n (Ingress Route)
+## Directory Structure
 
-To expose an n8n webhook through Kong Gateway (port `8088`) with rate limiting and API key authentication:
-
-### 1. Register n8n as a Kong Service
-```bash
-curl.exe -i -X POST http://localhost:8001/services \
-  -d "name=n8n-ingest-service" \
-  -d "url=http://host.docker.internal:5678"
+```
+n8n/
+├── docker-compose.yml              # Multi-container orchestration (n8n + n8n-proxy)
+├── .env                            # Environment variables (HTTPS, cookies, encryption key)
+├── .env.example                    # Sample environment template
+├── README.md                       # Architecture & runbook documentation
+├── docker/
+│   ├── nginx.n8n.conf              # Reverse proxy configuration with sub_filter injection
+│   ├── custom-theme.css            # Dark slate/teal branding & logo replacement styles
+│   └── ssl/                        # SSL certificates & keys (localhost / tayloruniversity)
+├── docs/
+│   ├── Workflow_engine_logo_loop_202607111220.png # Loop engine logo
+│   ├── favicon_loop.png            # Favicon
+│   └── solar-onc-pipeline-workflow.json # Example pipeline workflow template
+└── n8n_data/                       # Persistent database & workflow configuration
 ```
 
-### 2. Create an Ingestion Route
+---
+
+## Reset & Utility Commands
+
+### Reset n8n User Accounts
 ```bash
-curl.exe -i -X POST http://localhost:8001/services/n8n-ingest-service/routes \
-  -d "name=n8n-webhook-route" \
-  -d "paths[]=/api/v1/telemetry" \
-  -d "strip_path=false"
+docker exec -it n8n-server n8n user-management:reset
+docker restart n8n-server
 ```
 
-*(External webhooks sent to `http://localhost:8088/api/v1/telemetry` will now proxy directly to n8n!)*
-
----
-
-## Connecting n8n to CDE Pipeline Components
-
-### 1. Path A: Redis Streams (Urgent Alert Lane)
-- In your n8n workflow, add a **Redis** node.
-- **Connection Host:** `host.docker.internal` (or `imops-redis` if using container network)
-- **Port:** `6379`
-- **Operation:** Execute Custom Command $\rightarrow$ `XADD stream:urgent * event_id {{ $json.event_id }} severity {{ $json.severity }}`
-
-### 2. Path B: Raw Storage (MinIO / MongoDB)
-- Add a **MongoDB** node or **AWS S3 / MinIO** node:
-  - **S3 / MinIO Endpoint:** `http://host.docker.internal:9000`
-  - **Bucket:** `lake-raw`
-  - Write raw payload directly as `.json.gz` or unindexed document.
-
----
-
-## Stop & Maintenance
-
-- **Stop container:**
-  ```bash
-  docker compose down
-  ```
-- **View live logs:**
-  ```bash
-  docker compose logs -f
-  ```
-- **Reset n8n data (clean state):**
-  ```bash
-  docker compose down
-  # delete the ./n8n_data directory if you wish to wipe workflow history
-  ```
+### Clean State / Rebuild
+```bash
+docker compose down
+# To completely reset workflows and credentials:
+# Remove-Item -Recurse -Force ./n8n_data/*
+docker compose up -d
+```

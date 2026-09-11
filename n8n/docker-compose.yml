@@ -1,28 +1,28 @@
 services:
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
-    container_name: cde-n8n
+    container_name: n8n-server
     user: 'root'
     restart: unless-stopped
-    ports:
-      - "${N8N_PORT:-5678}:5678"
+    expose:
+      - "5678"
     environment:
       # Host & Protocol
       - N8N_HOST=${N8N_HOST:-localhost}
-      - N8N_PORT=${N8N_PORT:-5678}
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
       - TZ=${TZ:-Asia/Singapore}
-      
-      # Cookie & Security Policy
-      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
-      - N8N_SAMESITE_COOKIE=${N8N_SAMESITE_COOKIE:-lax}
+
+      # Cookie & Security Policy (configured for iframe embedding & SSL proxy)
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-true}
+      - N8N_SAMESITE_COOKIE=${N8N_SAMESITE_COOKIE:-none}
       - NODE_TLS_REJECT_UNAUTHORIZED=0
-      
+
       # Webhook Resolution
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-https://localhost:5678/}
       - N8N_PROXY_HOPS=${N8N_PROXY_HOPS:-1}
-      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-cde-n8n-secret-encryption-key-2026-cde-pipeline}
-      
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-vFqkNzD0vZweaUiNmL7lOT7cSKotsEdA}
+
       # Performance & Execution History Pruning
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
@@ -33,7 +33,24 @@ services:
     networks:
       - cde-network
 
+  n8n-proxy:
+    image: nginx:alpine
+    container_name: n8n-proxy
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    volumes:
+      - ./docker/nginx.n8n.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+      - ./docker/custom-theme.css:/usr/share/nginx/html/custom-theme.css:ro
+      - ./docs/Workflow_engine_logo_loop_202607111220.png:/usr/share/nginx/html/Workflow_engine_logo_loop_202607111220.png:ro
+      - ./docs/favicon_loop.png:/usr/share/nginx/html/favicon_loop.png:ro
+    depends_on:
+      - n8n
+    networks:
+      - cde-network
+
 networks:
   cde-network:
     name: cde-network
-    driver: bridge
+    external: true

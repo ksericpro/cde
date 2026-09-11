@@ -1,0 +1,244 @@
+/* iMOPS Premium Dark Theme Overrides for Embedded n8n */
+
+/* 1. Brand Logo Substitution */
+/* Target only logos inside the login page, the sidebar, nav, or header */
+div[class*="login"] a:first-of-type svg,
+div[class*="signin"] a:first-of-type svg,
+div[class*="auth"] a:first-of-type svg,
+div[class*="login"] a[class*="logo"] svg,
+div[class*="signin"] a[class*="logo"] svg,
+div[class*="auth"] a[class*="logo"] svg,
+div[class*="login"] svg,
+div[class*="signin"] svg,
+div[class*="auth"] svg,
+div[class*="logo"] svg,
+div[class*="brand"] svg,
+[class*="logo"] svg,
+[class*="brand"] svg,
+svg[class*="logo"],
+svg[class*="brand"],
+a[href="/"] svg,
+a[href="/"] img,
+.sidebar svg[class*="logo"],
+aside[class*="sidebar"] svg[class*="logo"],
+.sidebar [class*="logo-container"] svg,
+aside[class*="sidebar"] [class*="logo-container"] svg,
+.sidebar [class*="logo"] svg,
+aside[class*="sidebar"] [class*="logo"] svg,
+[class*="logo-container"] svg {
+    display: none !important;
+}
+
+/* Hide text logo/names */
+div[class*="login"] span,
+div[class*="signin"] span,
+div[class*="auth"] span,
+div[class*="logo"] span,
+div[class*="brand"] span,
+.sidebar [class*="logo"] span,
+.sidebar [class*="logo"] h1,
+aside[class*="sidebar"] [class*="logo"] span,
+aside[class*="sidebar"] [class*="logo"] h1 {
+    display: none !important;
+}
+
+/* Inject custom image logo in sidebar */
+.sidebar a[class*="logo"]::after,
+aside[class*="sidebar"] a[class*="logo"]::after {
+    content: "" !important;
+    background-image: url('/Workflow_engine_logo_loop_202607111220.png') !important;
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+    background-position: left center !important;
+    width: 80px !important;
+    height: 24px !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    margin-bottom: 0px !important;
+}
+
+/* Larger logo for login / signin page */
+div[class*="login"] a:first-of-type::after,
+div[class*="signin"] a:first-of-type::after,
+div[class*="auth"] a:first-of-type::after,
+div[class*="login"] a[class*="logo"]::after,
+div[class*="signin"] a[class*="logo"]::after,
+div[class*="auth"] a[class*="logo"]::after,
+[class*="login"] [class*="logo"]::after,
+[class*="signin"] [class*="logo"]::after,
+[class*="auth"] [class*="logo"]::after,
+[class*="login"] [class*="brand"]::after,
+[class*="signin"] [class*="brand"]::after,
+[class*="auth"] [class*="brand"]::after,
+div[class*="login-logo"]::after,
+.login-logo::after,
+[class*="signin-logo"]::after {
+    content: "" !important;
+    background-image: url('/Workflow_engine_logo_loop_202607111220.png') !important;
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    width: 150px !important;
+    height: 48px !important;
+    display: inline-block !important;
+    margin-bottom: 16px !important;
+}
+
+/* 2. Background Overrides */
+html body,
+html body #app,
+html body .app,
+html body .canvas,
+html body .main-grid {
+    background-color: #060913 !important;
+}
+
+/* 3. Left Navigation Sidebar Overrides (Solid Black) */
+/* Target only the left navigation panel */
+.navigation-container,
+nav[class*="navigation"],
+div[class*="navigation-container"],
+.sidebar,
+aside[class*="sidebar"] {
+    background-color: #000000 !important;
+    border-right: 1px solid #131a2e !important;
+}
+
+/* Sidebar navigation links */
+[class*="menu-item"],
+[class*="sidebar-item"] {
+    color: #94a3b8 !important;
+    border-radius: 8px !important;
+    margin: 2px 8px !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+[class*="menu-item"]:hover,
+[class*="sidebar-item"]:hover {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+    color: #ffffff !important;
+}
+
+[class*="menu-item"].active,
+[class*="sidebar-item"].active,
+[class*="menu-item"][class*="active"],
+[class*="sidebar-item"][class*="active"] {
+    background-color: rgba(13, 148, 136, 0.1) !important;
+    color: #0d9488 !important;
+}
+
+/* 4. Color Theme Variables Override */
+:root, body, body[data-theme="dark"], body[data-theme="light"] {
+    --color--background: #060913 !important;
+    --background--surface: #060913 !important;
+    
+    --menu--color--background: #000000 !important;
+    --menu--color--background--active: #000000 !important;
+    --menu--color--background--hover: #000000 !important;
+    
+    --menu--item--color--background--active: rgba(13, 148, 136, 0.1) !important;
+    --menu--item--color--background--hover: rgba(255, 255, 255, 0.04) !important;
+    
+    --menu--item--color--text: #94a3b8 !important;
+    --menu--item--color--text--active: #0d9488 !important;
+    --menu--item--color--text--hover: #ffffff !important;
+    --menu--color--text: #94a3b8 !important;
+    
+    --background--hover: rgba(255, 255, 255, 0.04) !important;
+    --background--active: rgba(13, 148, 136, 0.1) !important;
+    --background--subtle: #0d1322 !important;
+
+    --color-background-base: #060913 !important;
+    --color-background-primary: #060913 !important;
+    --color-background-secondary: #000000 !important;
+    --color-background-card: #0d1322 !important;
+    
+    --color-canvas-background: #060913 !important;
+    --color-canvas-grid-line: rgba(255, 255, 255, 0.02) !important;
+    --color-ndv-background: #060913 !important;
+    
+    --color-navigation-background: #000000 !important;
+    --color-sidebar-background: #000000 !important;
+    --color-header-background: #000000 !important;
+    --color-sidebar-border: #131a2e !important;
+    
+    --color-border-base: #131a2e !important;
+    --color-border-light: #131a2e !important;
+    --color-border-accent: #0f766e !important;
+
+    --color-primary: #0d9488 !important;
+    --color-button-primary-background: #0f766e !important;
+    --color-button-primary-background-hover: #0d9488 !important;
+    --color-primary-hover: #0d9488 !important;
+    
+    --color-text-base: #e2e8f0 !important;
+    --color-text-title: #ffffff !important;
+
+    /* HSL Fallbacks */
+    --color-background-base-h: 227 !important;
+    --color-background-base-s: 50% !important;
+    --color-background-base-l: 5% !important;
+    
+    --color-background-primary-h: 227 !important;
+    --color-background-primary-s: 50% !important;
+    --color-background-primary-l: 5% !important;
+    
+    --color-background-secondary-h: 0 !important;
+    --color-background-secondary-s: 0% !important;
+    --color-background-secondary-l: 0% !important;
+    
+    --color-primary-h: 175 !important;
+    --color-primary-s: 84% !important;
+    --color-primary-l: 32% !important;
+}
+
+/* 5. Dialogs and cards */
+.login-card, 
+div[class*="login-card"] {
+    background-color: #0d1322 !important;
+    border: 1px solid #131a2e !important;
+}
+
+/* 6. Hide Templates and Help Sidebar Items specifically in the left sidebar */
+.sidebar [class*="_templates_"],
+.sidebar [class*="_help_"],
+.sidebar a[href*="templates"],
+.sidebar a[href*="help"],
+.sidebar [data-test-id*="templates"],
+.sidebar [data-test-id*="help"],
+aside[class*="sidebar"] [class*="_templates_"],
+aside[class*="sidebar"] [class*="_help_"],
+aside[class*="sidebar"] a[href*="templates"],
+aside[class*="sidebar"] a[href*="help"],
+aside[class*="sidebar"] [data-test-id*="templates"],
+aside[class*="sidebar"] [data-test-id*="help"] {
+    display: none !important;
+}
+
+/* 7. Hide Specific Settings Page Menu Items globally */
+a[href*="settings/project-roles"],
+a[href*="settings/roles-new"],
+a[href*="settings/secrets"],
+a[href*="settings/environments"],
+a[href*="settings/sso"],
+a[href*="settings/ldap"],
+a[href*="settings/log-streaming"],
+a[href*="settings/mcp"],
+a[href*="settings/api"],
+a[href*="settings/chat"],
+a[href*="settings/usage"],
+a[href*="settings/plan"],
+[data-test-id*="project-roles"],
+[data-test-id*="roles-new"],
+[data-test-id*="secrets"],
+[data-test-id*="environments"],
+[data-test-id*="sso"],
+[data-test-id*="ldap"],
+[data-test-id*="log-streaming"],
+[data-test-id*="mcp"],
+[data-test-id*="api"],
+[data-test-id*="chat"],
+[data-test-id*="usage"],
+[data-test-id*="plan"] {
+    display: none !important;
+}

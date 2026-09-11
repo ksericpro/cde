@@ -1,0 +1,192 @@
+{
+  "name": "Solar-Onc Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "solar-onc-data",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "e2ba9316-ea39-4fc6-b8db-608fb36c0d8d",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://solarpv.app/apiroot/onc-api/last-n-months",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tag_name",
+              "value": "={{ $json.query?.tag_name || \"CAG:M_RAE\" }}"
+            },
+            {
+              "name": "nMonths",
+              "value": "={{ $json.query?.nMonths || 12 }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-user-id",
+              "value": "onc_api_user"
+            },
+            {
+              "name": "x-password",
+              "value": "Guest@1234"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3437fcec24fdd28ae1fc8594c69404fcc652156fa1ade4f4d9a41fedc6999507"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff99a116-ea39-4fc6-b8db-608fb36c0d82",
+      "name": "Last N Months",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        500,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://solarpv.app/apiroot/onc-api/tagValue",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tags",
+              "value": "={{ $json.query?.tags || \"CAG:M_RAE, CAG:N_ACWH, CAG:N_ALARM\" }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-user-id",
+              "value": "onc_api_user"
+            },
+            {
+              "name": "x-password",
+              "value": "Guest@1234"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3437fcec24fdd28ae1fc8594c69404fcc652156fa1ade4f4d9a41fedc6999507"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff99a116-ea39-4fc6-b8db-608fb36c0d83",
+      "name": "Tag Value",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        500,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "outputSource": "input1",
+        "options": {}
+      },
+      "id": "e2ba9316-ea39-4fc6-b8db-608fb36c0d9a",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lastNMonths = $('Last N Months').all().map(item => item.json);\nconst tagValue = $('Tag Value').all().map(item => item.json);\n\nreturn [{\n  json: {\n    lastNMonths,\n    tagValue\n  }\n}];"
+      },
+      "id": "c800b316-ea39-4fc6-b8db-608fb36c0d8d",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        950,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Last N Months",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tag Value",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Last N Months": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Value": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60
+  },
+  "active": true
+}
