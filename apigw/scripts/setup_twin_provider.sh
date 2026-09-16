@@ -5,14 +5,19 @@
 
 set -e
 
-UPSTREAM_HOST="${1:-host.docker.internal:13000}"
+UPSTREAM_HOST="${1:-localhost:13000}"
 ADMIN_URL="${2:-http://localhost:8001}"
 API_KEY="${3:-vizzio-digital-twin-key-2026}"
 
 # -----------------------------------------------------------------------------
 # Upstream URL Resolution
 # -----------------------------------------------------------------------------
-if [[ "$UPSTREAM_HOST" =~ ^https?:// ]]; then
+# When Kong runs inside Docker, 'localhost' refers to the container itself.
+# Map localhost / 127.0.0.1 to host.docker.internal so Kong can reach the host backend.
+if [[ "$UPSTREAM_HOST" =~ ^(https?://)?(localhost|127\.0\.0\.1)(:[0-9]+)? ]]; then
+    PORT_PART="${BASH_REMATCH[3]:-:13000}"
+    BASE_URL="http://host.docker.internal${PORT_PART}"
+elif [[ "$UPSTREAM_HOST" =~ ^https?:// ]]; then
     BASE_URL="${UPSTREAM_HOST%/}"
 elif [[ "$UPSTREAM_HOST" =~ :[0-9]+$ ]]; then
     BASE_URL="http://${UPSTREAM_HOST}"

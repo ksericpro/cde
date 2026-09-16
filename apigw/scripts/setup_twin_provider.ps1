@@ -33,7 +33,7 @@
 
 param(
     [Parameter(Position = 0)]
-    [string]$UpstreamHost = "host.docker.internal:13000",
+    [string]$UpstreamHost = "localhost:13000",
 
     [Parameter(Position = 1)]
     [string]$AdminUrl = "http://localhost:8001",
@@ -47,7 +47,12 @@ param(
 # -----------------------------------------------------------------------------
 $rawHost = $UpstreamHost.Trim()
 
-if ($rawHost -match '^https?://') {
+# When Kong runs inside Docker, 'localhost' refers to the container itself.
+# Map localhost / 127.0.0.1 to host.docker.internal so Kong can reach the host backend.
+if ($rawHost -match '^(https?://)?(localhost|127\.0\.0\.1)(:\d+)?(/.*)?$') {
+    $portPart = if ($Matches[3]) { $Matches[3] } else { ":13000" }
+    $baseUrl = "http://host.docker.internal${portPart}"
+} elseif ($rawHost -match '^https?://') {
     $baseUrl = $rawHost.TrimEnd('/')
 } elseif ($rawHost -match ':\d+$') {
     $baseUrl = "http://${rawHost}"
@@ -61,7 +66,7 @@ $realtimeServiceUrl = "$baseUrl"
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host " Starting Kong Gateway: Digital Twin Provider Provisioning" -ForegroundColor Cyan
 Write-Host "   Admin API:     $AdminUrl" -ForegroundColor Gray
-Write-Host "   Target Host:   $UpstreamHost" -ForegroundColor Gray
+Write-Host "   Target Host:   $UpstreamHost (default)" -ForegroundColor Gray
 Write-Host "   Resolved Base: $baseUrl" -ForegroundColor Green
 Write-Host "   Consumer Key:  $ApiKey" -ForegroundColor Gray
 Write-Host "============================================================" -ForegroundColor Cyan

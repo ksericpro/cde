@@ -70,7 +70,7 @@ The setup script provisions all necessary Kong Services, Routes, Plugins, and Co
 Run `setup_twin_provider.ps1` from the repository root or `scripts/` directory:
 
 ```powershell
-# 1. Default (Local Docker backend via host.docker.internal:13000):
+# 1. Default (Upstream defaults to localhost:13000):
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\setup_twin_provider.ps1
 
 # 2. Deploying against a specific IP (automatically defaults to port 13000):
@@ -83,11 +83,11 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\setup_twin_provider.ps1 "
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\setup_twin_provider.ps1 "http://prod-imops.internal:13000"
 
 # 5. Testing with the local Mock Backend (Port 3001):
-powershell.exe -ExecutionPolicy Bypass -File .\scripts\setup_twin_provider.ps1 "host.docker.internal:3001"
+powershell.exe -ExecutionPolicy Bypass -File .\scripts\setup_twin_provider.ps1 "localhost:3001"
 ```
 
 #### Script Parameters:
-* `-UpstreamHost` (Position 0, default: `"host.docker.internal:13000"`): Target backend IP, host, or URL.
+* `-UpstreamHost` (Position 0, default: `"localhost:13000"`): Target backend IP, host, or URL. Automatically maps `localhost` / `127.0.0.1` to `host.docker.internal` so Kong inside Docker can reach the host machine.
 * `-AdminUrl` (Position 1, default: `"http://localhost:8001"`): Kong Admin API URL.
 * `-ApiKey` (Position 2, default: `"vizzio-digital-twin-key-2026"`): Consumer API key for Digital Twin authentication.
 
@@ -99,7 +99,7 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\setup_twin_provider.ps1 "
 # Make script executable
 chmod +x ./scripts/setup_twin_provider.sh
 
-# 1. Default (host.docker.internal:13000):
+# 1. Default (localhost:13000):
 ./scripts/setup_twin_provider.sh
 
 # 2. Custom Production IP:
