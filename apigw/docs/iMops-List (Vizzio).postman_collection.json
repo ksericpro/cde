@@ -1,0 +1,1248 @@
+{
+  "info": {
+    "_postman_id": "805a0932-7173-4f4f-ad88-aad8e73f5b06",
+    "name": "iMops-List (Vizzio)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "3814568"
+  },
+  "item": [
+    {
+      "name": "Visualization",
+      "item": [
+        {
+          "name": "Get Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 1. Check if the request was successful (Status 200)\r",
+                  "if (pm.response.code === 200) {\r",
+                  "    \r",
+                  "    const response = pm.response.json();\r",
+                  "\r",
+                  "    // 2. Check if the API's internal success flag is true\r",
+                  "    if (response.success === true) {\r",
+                  "        \r",
+                  "        // 3. Extract and save the tokens\r",
+                  "        const accessToken = response.data.token;\r",
+                  "        const refreshToken = response.data.refreshToken;\r",
+                  "\r",
+                  "        pm.environment.set(\"ACCESS_TOKEN\", accessToken);\r",
+                  "        pm.environment.set(\"REFRESH_TOKEN\", refreshToken);\r",
+                  "\r",
+                  "        console.log(\"Tokens updated successfully.\");\r",
+                  "    } else {\r",
+                  "        console.warn(\"Login failed according to API: \" + response.message);\r",
+                  "    }\r",
+                  "} else {\r",
+                  "    console.error(\"Request failed with status: \" + pm.response.code);\r",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\": \"{{VIZZIO_USER}}\",\r\n    \"password\": \"{{VIZZIO_PASS}}\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/auth/login",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 1. Check if the request was successful (Status 200)\r",
+                  "if (pm.response.code === 200) {\r",
+                  "    \r",
+                  "    const response = pm.response.json();\r",
+                  "\r",
+                  "    // 2. Check if the API's internal success flag is true\r",
+                  "    if (response.success === true) {\r",
+                  "        \r",
+                  "        // 3. Extract and save the tokens\r",
+                  "        const accessToken = response.data.token;\r",
+                  "        const refreshToken = response.data.refreshToken;\r",
+                  "\r",
+                  "        pm.environment.set(\"ACCESS_TOKEN\", accessToken);\r",
+                  "        pm.environment.set(\"REFRESH_TOKEN\", refreshToken);\r",
+                  "\r",
+                  "        console.log(\"Tokens updated successfully.\");\r",
+                  "    } else {\r",
+                  "        console.warn(\"Login failed according to API: \" + response.message);\r",
+                  "    }\r",
+                  "} else {\r",
+                  "    console.error(\"Request failed with status: \" + pm.response.code);\r",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n     \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTY2MmExMzFhY2EwNzY1Y2JkMjQ4ZmYiLCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc3NTUzODAyNywiZXhwIjoxNzc2MTQyODI3fQ.7Hyn3_oZUtGzAG5W7V-ubnCAg_L58WyeKqbMvM1yfnQ\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/auth/refresh",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Sites",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Site Tree (HQ)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?siteName=SOV%20%40%2038ALT&tree=true",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "siteName",
+                  "value": "SOV%20%40%2038ALT"
+                },
+                {
+                  "key": "tree",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Buildings of Site",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?siteId=6a9a86656ef76c2f8b374dd7",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "siteId",
+                  "value": "6a9a86656ef76c2f8b374dd7"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Floors of Building",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?buildingId=6a9a86656ef76c2f8b374df8",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "buildingId",
+                  "value": "6a9a86656ef76c2f8b374df8"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Zones of Floor 1",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?floorId=6a9a86656ef76c2f8b374e05",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "floorId",
+                  "value": "6a9a86656ef76c2f8b374e05"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Zones of Floor 2",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?floorId=6a9a86656ef76c2f8b374e56",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "floorId",
+                  "value": "6a9a86656ef76c2f8b374e56"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Zones of Floor 3",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?floorId=6a9a86666ef76c2f8b374f2a",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "floorId",
+                  "value": "6a9a86666ef76c2f8b374f2a"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Zones of Floor 4",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?floorId=6a9a86656ef76c2f8b374e9e",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "floorId",
+                  "value": "6a9a86656ef76c2f8b374e9e"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Zones of Floor 5",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?floorId=6a9a86666ef76c2f8b374f06",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "floorId",
+                  "value": "6a9a86666ef76c2f8b374f06"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Zones of Floor 6",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/hierarchy?floorId=6a9a86656ef76c2f8b374e6a",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "hierarchy"
+              ],
+              "query": [
+                {
+                  "key": "floorId",
+                  "value": "6a9a86656ef76c2f8b374e6a"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Equipment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/equipment?zoneId=69d0af4e728b0fa92759f5a1&type=all&limit=100&page=1",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "equipment"
+              ],
+              "query": [
+                {
+                  "key": "zoneId",
+                  "value": "69d0af4e728b0fa92759f5a1"
+                },
+                {
+                  "key": "type",
+                  "value": "all"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Device Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/device-health",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "device-health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Incidents of Site",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/incidents?daysBack=365&page=2",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "daysBack",
+                  "value": "365"
+                },
+                {
+                  "key": "page",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search Incidents of Site",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/incidents?siteName=Kallang&daysBack=365&page=2",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "siteName",
+                  "value": "Kallang"
+                },
+                {
+                  "key": "daysBack",
+                  "value": "365"
+                },
+                {
+                  "key": "page",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Find Incidents of Site Name",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/incidents?siteName=Kallang&daysBack=365&page=2",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "siteName",
+                  "value": "Kallang"
+                },
+                {
+                  "key": "daysBack",
+                  "value": "365"
+                },
+                {
+                  "key": "page",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Find Incidents of Site Name (HQ)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/incidents?siteName=SOV%20%40%2038ALT&daysBack=365&page=1",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "siteName",
+                  "value": "SOV%20%40%2038ALT"
+                },
+                {
+                  "key": "daysBack",
+                  "value": "365"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Incidents of Building",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/incidents?buildingId=69d0a3ea0d5b813e3e11e81c",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "buildingId",
+                  "value": "69d0a3ea0d5b813e3e11e81c"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Incidents of Floor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/incidents?loorId=69d0a7349f82201a6af47612",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "loorId",
+                  "value": "69d0a7349f82201a6af47612"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Incidents Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/incidents",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "incidents"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Site SLA",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/sla?siteId=69c89c61b092e55dec9e1536&daysBack=7",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "sla"
+              ],
+              "query": [
+                {
+                  "key": "siteId",
+                  "value": "69c89c61b092e55dec9e1536"
+                },
+                {
+                  "key": "daysBack",
+                  "value": "7"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Visualization Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/dashboard",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "dashboard"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Attendance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/attendance",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "attendance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Summons",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/summons",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "summons"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "VA-Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/va-summary",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "va-summary"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Bwc",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/visualization/bwc",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "visualization",
+                "bwc"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Incidents",
+      "item": [
+        {
+          "name": "Get a Incident",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/incidents/69c21a591119c96caf129eba",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "69c21a591119c96caf129eba"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Incidents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BACKEND_API}}/api/incidents",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Camera #1 Offline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"incidentType\": \"site_equipment_offline\", \r\n    \"deviceName\": \"SOV 38ALT Carpark Lot 1\",\r\n    \"offlineDuration\": 35\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/incidents/monitor",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "monitor"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Camera #2 Offline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"incidentType\": \"site_equipment_offline\", \r\n    \"deviceName\": \"SOV 38ALT L2 Reception\",\r\n    \"offlineDuration\": 35\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/incidents/monitor",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "monitor"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Camera #3 Offline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"incidentType\": \"site_equipment_offline\", \r\n    \"deviceName\": \"SOV 38ALT Roof Top\",\r\n    \"offlineDuration\": 35\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/incidents/monitor",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "monitor"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Camera #4 Offline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"incidentType\": \"site_equipment_offline\", \r\n    \"deviceName\": \"SOV 38ALT L4 Staircase\",\r\n    \"offlineDuration\": 35\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/incidents/monitor",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "monitor"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "startTime",
+      "value": ""
+    },
+    {
+      "key": "endTime",
+      "value": ""
+    }
+  ]
+}
