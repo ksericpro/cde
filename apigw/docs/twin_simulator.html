@@ -513,11 +513,19 @@
     <div class="gateway-bar">
       <div class="gateway-input-group">
         <label>Kong Proxy</label>
-        <input type="text" id="kongHost" value="http://localhost:8088" style="width: 190px;">
+        <input type="text" id="kongHost" value="http://localhost:8088" style="width: 170px;">
       </div>
       <div class="gateway-input-group">
-        <label>API Key</label>
-        <input type="password" id="kongApiKey" value="vizzio-digital-twin-key-2026" style="width: 170px;">
+        <label>Username</label>
+        <input type="text" id="authUser" value="vizzio@imops.local" style="width: 150px;">
+      </div>
+      <div class="gateway-input-group">
+        <label>Password</label>
+        <input type="password" id="authPass" value="xAJHkkm7m3V5MhtF0xGM" style="width: 130px;">
+      </div>
+      <div class="gateway-input-group">
+        <label>WS API Key</label>
+        <input type="password" id="kongApiKey" value="vizzio-digital-twin-key-2026" style="width: 130px;">
       </div>
       <button class="btn-connect" id="btnConnect" onclick="toggleConnection()">Connect Stream</button>
     </div>
@@ -659,14 +667,15 @@
     // 1. Reconciliation Poller (REST via Kong)
     async function executeReconcil() {
       const kongBase = document.getElementById('kongHost').value.trim();
-      const apiKey = document.getElementById('kongApiKey').value.trim();
+      const user = document.getElementById('authUser').value.trim();
+      const pass = document.getElementById('authPass').value.trim();
+      const base64Auth = btoa(`${user}:${pass}`);
       const startTime = performance.now();
 
       try {
         const response = await fetch(`${kongBase}/api/visualization/hierarchy?siteName=SOV%20%40%2038ALT&tree=true`, {
           headers: {
-            'apikey': apiKey,
-            ...(userToken ? { 'Authorization': `Bearer ${userToken}` } : {})
+            'Authorization': `Basic ${base64Auth}`
           }
         });
 

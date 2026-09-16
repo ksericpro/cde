@@ -112,48 +112,57 @@ curl -s -X POST "$ADMIN_URL/services/$REST_SERVICE_NAME/plugins" \
     -H "Content-Type: application/json" \
     -d '{"name":"rate-limiting","config":{"minute":120,"policy":"local"}}' > /dev/null 2>&1 || true
 
-# Option 2: Automatic Token Injection via request-transformer
-AUTH_EMAIL="${4:-vizzio@imops.local}"
+# Basic Auth Plugin on twin-visualization-route (Perimeter security + pass-through)
+AUTH_USER="${4:-vizzio@imops.local}"
 AUTH_PASS="${5:-xAJHkkm7m3V5MhtF0xGM}"
-LOGIN_TARGET=$(echo "$BASE_URL" | sed 's/host\.docker\.internal/localhost/')
-TOKEN_RESP=$(curl -s -X POST "$LOGIN_TARGET/api/auth/login" \
-    -H "Content-Type: application/json" \
-    -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASS\"}" || true)
 
-TOKEN=$(echo "$TOKEN_RESP" | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)
-
-if [ -n "$TOKEN" ]; then
-    TRANSFORMER_ID=$(curl -s "$ADMIN_URL/routes/twin-visualization-route/plugins" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4 || true)
-    if [ -n "$TRANSFORMER_ID" ]; then
-        curl -s -X PATCH "$ADMIN_URL/routes/twin-visualization-route/plugins/$TRANSFORMER_ID" \
-            -H "Content-Type: application/json" \
-            -d "{\"config\":{\"add\":{\"headers\":[\"Authorization:Bearer $TOKEN\"]}}}" > /dev/null 2>&1 || true
-    else
-        curl -s -X POST "$ADMIN_URL/routes/twin-visualization-route/plugins" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\":\"request-transformer\",\"config\":{\"add\":{\"headers\":[\"Authorization:Bearer $TOKEN\"]}}}" > /dev/null 2>&1 || true
-    fi
-    echo "  ✅ Attached 'request-transformer' (Backend Token Injection) to twin-visualization-route"
+BASIC_AUTH_ID=$(curl -s "$ADMIN_URL/routes/twin-visualization-route/plugins" | grep -o '"name":"basic-auth"' || true)
+if [ -z "$BASIC_AUTH_ID" ]; then
+    curl -s -X POST "$ADMIN_URL/routes/twin-visualization-route/plugins" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"basic-auth","config":{"hide_credentials":false}}' > /dev/null 2>&1 || true
+    echo "  ✅ Attached 'basic-auth' (hide_credentials=false) to twin-visualization-route"
+else
+    echo "  ℹ️  'basic-auth' already active on twin-visualization-route"
 fi
-echo "  ✅ Plugins verified on services"
 
-# 5. Consumer & Credentials
+# Remove legacy request-transformer if present
+TRANSFORMER_ID=$(curl -s "$ADMIN_URL/routes/twin-visualization-route/plugins" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4 || true)
+if [ -n "$TRANSFORMER_ID" ]; then
+    IS_TRANSFORMER=$(curl -s "$ADMIN_URL/plugins/$TRANSFORMER_ID" | grep -o '"name":"request-transformer"' || true)
+    if [ -n "$IS_TRANSFORMER" ]; then
+        curl -s -X DELETE "$ADMIN_URL/plugins/$TRANSFORMER_ID" > /dev/null 2>&1 || true
+        echo "  ✅ Removed legacy 'request-transformer' plugin"
+    fi
+fi
+
+# 5. Consumer & Basic Auth Credentials
 CONSUMER_NAME="vizzio-twin-consumer"
-echo -e "\n[5/5] Configuring Consumer ($CONSUMER_NAME)..."
+echo -e "\n[5/5] Configuring Consumer ($CONSUMER_NAME) & Credentials..."
 curl -s -X POST "$ADMIN_URL/consumers" \
     -H "Content-Type: application/json" \
     -d "{\"username\":\"$CONSUMER_NAME\",\"custom_id\":\"twin-vizzio-tenant\"}" > /dev/null 2>&1 || true
 
-curl -s -X POST "$ADMIN_URL/consumers/$CONSUMER_NAME/key-auth" \
-    -H "Content-Type: application/json" \
-    -d "{\"key\":\"$API_KEY\"}" > /dev/null 2>&1 || true
-echo "  ✅ Consumer and API Key verified"
+# Provision Basic Auth credentials if not already present
+CREDS_CHECK=$(curl -s "$ADMIN_URL/basic-auths" | grep -o "\"username\":\"$AUTH_USER\"" || true)
+if [ -z "$CREDS_CHECK" ]; then
+    curl -s -X POST "$ADMIN_URL/consumers/$CONSUMER_NAME/basic-auth" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$AUTH_USER\",\"password\":\"$AUTH_PASS\"}" > /dev/null 2>&1 || true
+    echo "  ✅ Basic Auth credentials provisioned for '$AUTH_USER'"
+else
+    echo "  ℹ️  Basic Auth credentials for '$AUTH_USER' already configured in Kong"
+fi
 
 echo "============================================================"
 echo " 🎉 Kong Gateway Setup Complete for Digital Twins!"
-echo " Ingress (Port 8088):"
+echo " Ingress Endpoints (Port 8088):"
 echo "   REST Reconcil:  http://localhost:8088/api/visualization/hierarchy"
 echo "   REST Incidents: http://localhost:8088/api/visualization/incidents"
 echo "   WebSocket:      ws://localhost:8088/ws"
 echo "   Socket.IO:      http://localhost:8088/socket.io/"
+echo "------------------------------------------------------------"
+echo " Authentication: HTTP Basic Auth (Pass-Through to Upstream)"
+echo "   Username:     $AUTH_USER"
+echo "   Password:     $AUTH_PASS"
 echo "============================================================"

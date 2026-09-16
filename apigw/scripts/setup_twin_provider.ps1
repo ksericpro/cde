@@ -16,7 +16,8 @@
     - Plugins:
       - CORS (permissive for 3D/WebGL browser origins)
       - Rate Limiting (120 req/min burst protection)
-    - Consumer: vizzio-twin-consumer (API Key: vizzio-digital-twin-key-2026)
+      - Basic Auth (hide_credentials=false, verifies credentials and passes to upstream)
+    - Consumer: vizzio-twin-consumer (Basic Auth: vizzio@imops.local / xAJHkkm7m3V5MhtF0xGM)
 
 .PARAMETER UpstreamHost
     Host, IP, or base URL of the target iMOPS backend.
@@ -288,40 +289,34 @@ if (-not $hasRateLimit) {
     Write-Host "   [INFO] 'rate-limiting' plugin already active on $restServiceName" -ForegroundColor Gray
 }
 
-# Auto-inject Backend Bearer Token via request-transformer (Option 2: Zero-Login)
-if ($InjectAuth) {
-    Write-Host "   Configuring automatic backend token injection (Option 2)..." -ForegroundColor Gray
-    try {
-        $loginTarget = $baseUrl -replace 'host\.docker\.internal', 'localhost'
-        $loginUrl = "$loginTarget/api/auth/login"
-        $loginBody = @{ email = $AuthEmail; password = $AuthPassword } | ConvertTo-Json
-        $loginResp = Invoke-RestMethod -Uri $loginUrl -Method Post -ContentType "application/json" -Body $loginBody -ErrorAction Stop
-        
-        if ($loginResp.success -and $loginResp.data.token) {
-            $backendToken = $loginResp.data.token
-            $routePlugins = (Invoke-KongAdmin -Method "Get" -Path "/routes/twin-visualization-route/plugins").data
-            $existingTransformer = $routePlugins | Where-Object { $_.name -eq "request-transformer" }
-            $transformerJson = '{"name":"request-transformer","config":{"add":{"headers":["Authorization:Bearer ' + $backendToken + '"]}}}'
-            
-            if ($existingTransformer) {
-                Invoke-RestMethod -Uri "$AdminUrl/routes/twin-visualization-route/plugins/$($existingTransformer.id)" -Method Patch -ContentType "application/json" -Body $transformerJson | Out-Null
-                Write-Host "   [OK] Updated 'request-transformer' with backend Bearer token on twin-visualization-route" -ForegroundColor Green
-            } else {
-                Invoke-RestMethod -Uri "$AdminUrl/routes/twin-visualization-route/plugins" -Method Post -ContentType "application/json" -Body $transformerJson | Out-Null
-                Write-Host "   [OK] Attached 'request-transformer' (Backend Bearer Token Injection) to twin-visualization-route" -ForegroundColor Green
-            }
+# Attach Basic Auth to twin-visualization-route (Perimeter validation + pass-through to upstream)
+$routePlugins = (Invoke-KongAdmin -Method "Get" -Path "/routes/twin-visualization-route/plugins").data
+$hasBasicAuth = $routePlugins | Where-Object { $_.name -eq "basic-auth" }
+if (-not $hasBasicAuth) {
+    Invoke-KongAdmin -Method "Post" -Path "/routes/twin-visualization-route/plugins" -Body @{
+        name   = "basic-auth"
+        config = @{
+            hide_credentials = $false
         }
-    } catch {
-        Write-Host "   [INFO] Backend login not reachable at $loginUrl. Skipping automatic token injection." -ForegroundColor Gray
-    }
+    } | Out-Null
+    Write-Host "   [OK] Attached 'basic-auth' (hide_credentials=false) to twin-visualization-route" -ForegroundColor Green
+} else {
+    Write-Host "   [INFO] 'basic-auth' plugin already active on twin-visualization-route" -ForegroundColor Gray
+}
+
+# Clean up legacy request-transformer if present
+$hasTransformer = $routePlugins | Where-Object { $_.name -eq "request-transformer" }
+if ($hasTransformer) {
+    Invoke-KongAdmin -Method "Delete" -Path "/plugins/$($hasTransformer.id)" | Out-Null
+    Write-Host "   [OK] Removed legacy 'request-transformer' plugin" -ForegroundColor Gray
 }
 
 # -----------------------------------------------------------------------------
-# 5. Consumer & Credentials
+# 5. Consumer & Basic Auth Credentials
 # -----------------------------------------------------------------------------
 $consumerName = "vizzio-twin-consumer"
 Write-Host ""
-Write-Host "[5/5] Configuring Consumer ($consumerName)..." -ForegroundColor Yellow
+Write-Host "[5/5] Configuring Consumer ($consumerName) & Credentials..." -ForegroundColor Yellow
 
 $existingConsumer = Invoke-KongAdmin -Method "Get" -Path "/consumers/$consumerName"
 if (-not $existingConsumer) {
@@ -334,18 +329,17 @@ if (-not $existingConsumer) {
     Write-Host "   [INFO] Consumer '$consumerName' exists (ID: $($existingConsumer.id))." -ForegroundColor Gray
 }
 
-# Check API Key
-if ($existingConsumer) {
-    $keys = (Invoke-KongAdmin -Method "Get" -Path "/consumers/$consumerName/key-auth").data
-    $keyMatch = $keys | Where-Object { $_.key -eq $ApiKey }
-    if (-not $keyMatch) {
-        Invoke-KongAdmin -Method "Post" -Path "/consumers/$consumerName/key-auth" -Body @{
-            key = $ApiKey
-        } | Out-Null
-        Write-Host "   [OK] Provisioned API Key: $ApiKey" -ForegroundColor Green
-    } else {
-        Write-Host "   [INFO] API Key already active for consumer." -ForegroundColor Gray
-    }
+# Ensure Basic Auth credentials exist for consumer
+$allBasicAuth = (Invoke-KongAdmin -Method "Get" -Path "/basic-auths").data
+$credExists = $allBasicAuth | Where-Object { $_.username -eq $AuthEmail }
+if (-not $credExists -and $existingConsumer) {
+    Invoke-KongAdmin -Method "Post" -Path "/consumers/$consumerName/basic-auth" -Body @{
+        username = $AuthEmail
+        password = $AuthPassword
+    } | Out-Null
+    Write-Host "   [OK] Provisioned Basic Auth credentials for '$AuthEmail'" -ForegroundColor Green
+} else {
+    Write-Host "   [INFO] Basic Auth credentials for '$AuthEmail' already configured in Kong." -ForegroundColor Gray
 }
 
 Write-Host ""
@@ -359,5 +353,7 @@ Write-Host "   REST Login:     http://localhost:8088/api/auth/login" -Foreground
 Write-Host "   WebSocket:      ws://localhost:8088/ws" -ForegroundColor Yellow
 Write-Host "   Socket.IO:      http://localhost:8088/socket.io/" -ForegroundColor Yellow
 Write-Host "------------------------------------------------------------" -ForegroundColor Cyan
-Write-Host " Consumer API Key: $ApiKey" -ForegroundColor White
+Write-Host " Authentication: HTTP Basic Auth (Pass-Through to Upstream)" -ForegroundColor White
+Write-Host "   Username:     $AuthEmail" -ForegroundColor Yellow
+Write-Host "   Password:     $AuthPassword" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
