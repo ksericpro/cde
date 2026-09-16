@@ -524,8 +524,11 @@
         <input type="password" id="authPass" value="xAJHkkm7m3V5MhtF0xGM" style="width: 130px;">
       </div>
       <div class="gateway-input-group">
-        <label>WS API Key</label>
-        <input type="password" id="kongApiKey" value="vizzio-digital-twin-key-2026" style="width: 130px;">
+        <label>Protocol</label>
+        <select id="wsProtocol" style="background:#0f172a; color:#f8fafc; border:1px solid #334155; border-radius:6px; padding:6px 8px; font-size:12px;">
+          <option value="socketio">Socket.IO (/socket.io)</option>
+          <option value="raw">Raw WS (/ws)</option>
+        </select>
       </div>
       <button class="btn-connect" id="btnConnect" onclick="toggleConnection()">Connect Stream</button>
     </div>
@@ -723,11 +726,15 @@
       }
 
       const kongBase = document.getElementById('kongHost').value.trim();
-      const apiKey = document.getElementById('kongApiKey').value.trim();
+      const protocol = document.getElementById('wsProtocol').value;
       
       // Replace http:// or https:// with ws:// or wss://
       let wsUrl = kongBase.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
-      wsUrl += `/ws?apikey=${encodeURIComponent(apiKey)}`;
+      if (protocol === 'socketio') {
+        wsUrl += '/socket.io/?EIO=4&transport=websocket';
+      } else {
+        wsUrl += '/ws';
+      }
 
       logMessage('WS', `Initiating Handshake via Kong: ${wsUrl}`);
       document.getElementById('wsStatus').className = 'status-pill status-disconnected';
@@ -743,14 +750,50 @@
           document.getElementById('btnConnect').style.background = '#ef4444';
           logMessage('WS', `Channel Upgraded (101 Switching Protocols). Stream ready.`);
           document.getElementById('streamFeed').innerHTML = '';
+
+          // Send site subscription if Socket.IO or custom WS
+          const siteName = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
+          if (protocol === 'socketio') {
+            // Engine.IO message frame prefix '42'
+            socket.send(`42["subscribe",{"siteName":"${siteName}"}]`);
+            logMessage('WS', `Subscribed to site topic: site:${siteName}`);
+          } else {
+            socket.send(JSON.stringify({ action: 'SUBSCRIBE', topic: `site:${siteName}` }));
+          }
         };
 
         socket.onmessage = (event) => {
+          const raw = event.data;
+          // Handle Engine.IO ping
+          if (raw === '2') {
+            socket.send('3'); // pong
+            return;
+          }
+          if (raw.startsWith('0')) {
+            logMessage('WS', `Engine.IO Session Initialized: ${raw.slice(1)}`);
+            return;
+          }
+          if (raw.startsWith('42')) {
+            try {
+              const parsed = JSON.parse(raw.slice(2));
+              const eventName = parsed[0];
+              const eventPayload = parsed[1];
+              if (eventName === 'incident:new') {
+                handleIncomingWsEvent({ type: 'INCIDENT_ALERT', incident: eventPayload });
+              } else if (eventName === 'incident:updated') {
+                handleIncomingWsEvent({ type: 'INCIDENT_UPDATED', ...eventPayload });
+              }
+            } catch (e) {
+              logMessage('WS', `Socket.IO Frame: ${raw}`);
+            }
+            return;
+          }
+
           try {
-            const data = JSON.parse(event.data);
+            const data = JSON.parse(raw);
             handleIncomingWsEvent(data);
           } catch (e) {
-            logMessage('WS', `Raw Frame: ${event.data}`);
+            logMessage('WS', `Raw Frame: ${raw}`);
           }
         };
 

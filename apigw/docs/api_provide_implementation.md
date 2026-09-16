@@ -394,8 +394,120 @@ In multi-site deployments, a Digital Twin viewing **SOV @ 38ALT** must only rece
   ```
 
 > [!TIP]
-> **Upstream Engineering Handover Guide:**  
-> A dedicated, developer-ready specification document has been created for the backend team:  
+> **Upstream Engineering Handover Guide & AI Prompt:**  
+> Dedicated developer documents have been created for the iMOPS team:  
 > 👉 [**Upstream WebSocket & Topic Specification**](file:///c:/Projects/cde/apigw/docs/upstream_websocket_specification.md)  
-> *Includes payload schemas, connection events, and drop-in Node.js / Socket.IO code snippets to provide directly to the upstream engineering team.*
+> 👉 [**Copy-Paste AI Prompt for iMOPS Team**](file:///c:/Projects/cde/apigw/docs/imops_websocket_implementation_prompt.md)
+
+---
+
+## 7. Post-Implementation Testing & Verification Guide (iMOPS WebSocket)
+
+Once the iMOPS engineering team completes the WebSocket implementation, execute these **4 sequential verification steps** to confirm end-to-end functionality.
+
+### Pre-requisite Mapping Confirmation
+Kong Gateway is **already pre-mapped** to your upstream service. No additional Kong routes or services are required:
+
+| Kong Component | Target Upstream | Status |
+| :--- | :--- | :--- |
+| **Service:** `imops-twin-realtime-service` | `http://host.docker.internal:13000` | ✅ Active (300s keepalive) |
+| **Route:** `twin-socketio-route` | `/socket.io` | ✅ Active |
+| **Route:** `twin-ws-route` | `/ws` | ✅ Active |
+
+---
+
+### Step 7.1: Verify Direct Handshake on iMOPS Backend (Port 13000)
+Test the upstream iMOPS backend directly to confirm the WebSocket server is alive and negotiating protocols:
+
+```cmd
+curl.exe -i --max-time 3 -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" "http://localhost:13000/socket.io/?EIO=4&transport=websocket"
+```
+
+**Expected Result:**
+* `HTTP/1.1 101 Switching Protocols`
+* Header `Upgrade: websocket`
+* Body contains initial Socket.IO session packet: `0{"sid":"...","upgrades":[],"pingInterval":25000...}`
+
+---
+
+### Step 7.2: Verify Tunnel Through Kong Gateway (Port 8088)
+Test that Kong Gateway cleanly proxies the real-time handshake from the perimeter:
+
+```cmd
+curl.exe -i --max-time 3 -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" "http://localhost:8088/socket.io/?EIO=4&transport=websocket"
+```
+
+**Expected Result:**
+* `HTTP/1.1 101 Switching Protocols`
+* Header `Server: kong/3.9.3`
+* Header `Via: 1.1 kong/3.9.3`
+* Stream stays open with sub-5ms proxy latency.
+
+---
+
+### Step 7.3: Fire a Test Incident via Kong API
+Trigger an incident through Kong's incident monitor API to simulate a camera or sensor detection:
+
+**Windows `curl.exe`:**
+```cmd
+curl.exe -i -X POST "http://localhost:8088/api/incidents/monitor" -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM" -H "Content-Type: application/json" -d "{\"site\":\"SOV @ 38ALT\",\"deviceName\":\"SOV 38ALT Main Gate VA INTRUSION\",\"incidentType\":\"INTRUSION\",\"timestamp\":1789539200,\"mode\":\"incident\"}"
+```
+
+**PowerShell (`Invoke-RestMethod`):**
+```powershell
+$base64Auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"))
+$headers = @{
+    "Authorization" = "Basic $base64Auth"
+    "Content-Type"  = "application/json"
+}
+
+$body = @{
+    site         = "SOV @ 38ALT"
+    deviceName   = "SOV 38ALT Main Gate VA INTRUSION"
+    incidentType = "INTRUSION"
+    timestamp    = [int][double]::Parse((Get-Date -UFormat %s))
+    mode         = "incident"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8088/api/incidents/monitor" -Method Post -Headers $headers -Body $body
+```
+
+**Expected Result:**
+* Upstream returns `HTTP 200 OK` confirming incident persistence.
+* Upstream emits `incident:new` to room `site:SOV @ 38ALT`.
+
+---
+
+### Step 7.4: The Final Verification Step — Live Simulation with `twin_simulator.html`
+
+The ultimate verification step is running the full visual Digital Twin operations simulator in [`docs/twin_simulator.html`](file:///c:/Projects/cde/apigw/docs/twin_simulator.html):
+
+1. **Launch the Simulator:**
+   * Open [`twin_simulator.html`](file:///c:/Projects/cde/apigw/docs/twin_simulator.html) in your browser (Google Chrome or Microsoft Edge).
+
+2. **Configure Connection:**
+   * **Kong Proxy:** `http://localhost:8088`
+   * **Username:** `vizzio@imops.local`
+   * **Password:** `xAJHkkm7m3V5MhtF0xGM`
+   * **Protocol:** Select `Socket.IO (/socket.io)` for live iMOPS, or `Raw WS (/ws)` for mock mode.
+
+3. **Verify Periodic Reconciliation Polling (Left Column):**
+   * Watch the polling countdown (every 5 seconds).
+   * Confirm the spatial hierarchy tree populates with **HQ Building** and all 6 floors (`Floor 1 Lift Lobby` to `Floor 6 Rooftop`).
+   * Verify Kong latency displays sub-10ms response times.
+
+4. **Connect the Live Real-Time Stream (Right Column):**
+   * Click **Connect Stream** in the top navigation bar.
+   * The status badge turns emerald green: `Connected (Kong :8088)`.
+   * The simulator automatically joins the site room `site:SOV @ 38ALT`.
+
+5. **Verify Real-Time Incident Push & Two-Way Acknowledge:**
+   * Run the incident trigger from **Step 7.3** (or click **Trigger Sim Alarm** in the simulator).
+   * **Visual Result:** An alert card (`⚠️ Intrusion: SOV 38ALT Main Gate`) immediately pops up in the right feed in **< 100ms** without touching the page!
+   * Click **Acknowledge** on the card:
+     * The button turns green and updates to `Acknowledged`.
+     * The two-way command is transmitted back up the WebSocket pipe to update state.
+   * Check the **Audit Console** at the bottom of the page to inspect timestamps, latency, and Kong headers for every interaction.
+
+
 
