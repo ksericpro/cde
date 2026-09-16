@@ -374,3 +374,28 @@ To use the Postman Collection ([`docs/iMops-List (Vizzio).postman_collection.jso
 4. Run `Get Site Tree (HQ)`:
    `GET {{BACKEND_API}}/api/visualization/hierarchy?siteName=SOV%20%40%2038ALT&tree=true`
    Requests are authenticated and proxied with zero code changes required on the backend.
+
+---
+
+## 6. Multi-Site Topic Partitioning & Backend Engineering Handover
+
+In multi-site deployments, a Digital Twin viewing **SOV @ 38ALT** must only receive events for SOV @ 38ALT, while a twin viewing **DORS** only receives DORS events.
+
+### How it Works:
+* **Digital Twin connects** via Kong Gateway on `/socket.io/`.
+* **Digital Twin declares its site** by emitting:
+  ```json
+  socket.emit("subscribe", { "siteName": "SOV @ 38ALT" });
+  ```
+* **Upstream assigns socket to room:** `socket.join("site:SOV @ 38ALT")`.
+* **When incidents occur:** The backend emits alerts only to the target room:
+  ```javascript
+  io.to(`site:${incident.site}`).emit("incident:new", incident);
+  ```
+
+> [!TIP]
+> **Upstream Engineering Handover Guide:**  
+> A dedicated, developer-ready specification document has been created for the backend team:  
+> 👉 [**Upstream WebSocket & Topic Specification**](file:///c:/Projects/cde/apigw/docs/upstream_websocket_specification.md)  
+> *Includes payload schemas, connection events, and drop-in Node.js / Socket.IO code snippets to provide directly to the upstream engineering team.*
+
