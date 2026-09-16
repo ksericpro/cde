@@ -39,7 +39,16 @@ param(
     [string]$AdminUrl = "http://localhost:8001",
 
     [Parameter(Position = 2)]
-    [string]$ApiKey = "vizzio-digital-twin-key-2026"
+    [string]$ApiKey = "vizzio-digital-twin-key-2026",
+
+    [Parameter(Position = 3)]
+    [bool]$InjectAuth = $true,
+
+    [Parameter(Position = 4)]
+    [string]$AuthEmail = "vizzio@imops.local",
+
+    [Parameter(Position = 5)]
+    [string]$AuthPassword = "xAJHkkm7m3V5MhtF0xGM"
 )
 
 # -----------------------------------------------------------------------------
@@ -277,6 +286,34 @@ if (-not $hasRateLimit) {
     Write-Host "   [OK] Attached 'rate-limiting' (120 req/min) to $restServiceName" -ForegroundColor Green
 } else {
     Write-Host "   [INFO] 'rate-limiting' plugin already active on $restServiceName" -ForegroundColor Gray
+}
+
+# Auto-inject Backend Bearer Token via request-transformer (Option 2: Zero-Login)
+if ($InjectAuth) {
+    Write-Host "   Configuring automatic backend token injection (Option 2)..." -ForegroundColor Gray
+    try {
+        $loginTarget = $baseUrl -replace 'host\.docker\.internal', 'localhost'
+        $loginUrl = "$loginTarget/api/auth/login"
+        $loginBody = @{ email = $AuthEmail; password = $AuthPassword } | ConvertTo-Json
+        $loginResp = Invoke-RestMethod -Uri $loginUrl -Method Post -ContentType "application/json" -Body $loginBody -ErrorAction Stop
+        
+        if ($loginResp.success -and $loginResp.data.token) {
+            $backendToken = $loginResp.data.token
+            $routePlugins = (Invoke-KongAdmin -Method "Get" -Path "/routes/twin-visualization-route/plugins").data
+            $existingTransformer = $routePlugins | Where-Object { $_.name -eq "request-transformer" }
+            $transformerJson = '{"name":"request-transformer","config":{"add":{"headers":["Authorization:Bearer ' + $backendToken + '"]}}}'
+            
+            if ($existingTransformer) {
+                Invoke-RestMethod -Uri "$AdminUrl/routes/twin-visualization-route/plugins/$($existingTransformer.id)" -Method Patch -ContentType "application/json" -Body $transformerJson | Out-Null
+                Write-Host "   [OK] Updated 'request-transformer' with backend Bearer token on twin-visualization-route" -ForegroundColor Green
+            } else {
+                Invoke-RestMethod -Uri "$AdminUrl/routes/twin-visualization-route/plugins" -Method Post -ContentType "application/json" -Body $transformerJson | Out-Null
+                Write-Host "   [OK] Attached 'request-transformer' (Backend Bearer Token Injection) to twin-visualization-route" -ForegroundColor Green
+            }
+        }
+    } catch {
+        Write-Host "   [INFO] Backend login not reachable at $loginUrl. Skipping automatic token injection." -ForegroundColor Gray
+    }
 }
 
 # -----------------------------------------------------------------------------

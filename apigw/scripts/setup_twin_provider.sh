@@ -111,6 +111,30 @@ curl -s -X POST "$ADMIN_URL/services/$WS_SERVICE_NAME/plugins" \
 curl -s -X POST "$ADMIN_URL/services/$REST_SERVICE_NAME/plugins" \
     -H "Content-Type: application/json" \
     -d '{"name":"rate-limiting","config":{"minute":120,"policy":"local"}}' > /dev/null 2>&1 || true
+
+# Option 2: Automatic Token Injection via request-transformer
+AUTH_EMAIL="${4:-vizzio@imops.local}"
+AUTH_PASS="${5:-xAJHkkm7m3V5MhtF0xGM}"
+LOGIN_TARGET=$(echo "$BASE_URL" | sed 's/host\.docker\.internal/localhost/')
+TOKEN_RESP=$(curl -s -X POST "$LOGIN_TARGET/api/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASS\"}" || true)
+
+TOKEN=$(echo "$TOKEN_RESP" | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)
+
+if [ -n "$TOKEN" ]; then
+    TRANSFORMER_ID=$(curl -s "$ADMIN_URL/routes/twin-visualization-route/plugins" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4 || true)
+    if [ -n "$TRANSFORMER_ID" ]; then
+        curl -s -X PATCH "$ADMIN_URL/routes/twin-visualization-route/plugins/$TRANSFORMER_ID" \
+            -H "Content-Type: application/json" \
+            -d "{\"config\":{\"add\":{\"headers\":[\"Authorization:Bearer $TOKEN\"]}}}" > /dev/null 2>&1 || true
+    else
+        curl -s -X POST "$ADMIN_URL/routes/twin-visualization-route/plugins" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"request-transformer\",\"config\":{\"add\":{\"headers\":[\"Authorization:Bearer $TOKEN\"]}}}" > /dev/null 2>&1 || true
+    fi
+    echo "  ✅ Attached 'request-transformer' (Backend Token Injection) to twin-visualization-route"
+fi
 echo "  ✅ Plugins verified on services"
 
 # 5. Consumer & Credentials

@@ -29,7 +29,8 @@ Digital Twin platforms interact with the Common Data Environment (CDE) / iMOPS b
 │ Kong Gateway OSS 3.9 (Port 8088 / 8443)                                                     │
 │  ├── Service: imops-twin-rest-service     (Path: /api/visualization, /api/auth)             │
 │  │   ├── Plugin: cors                     (Permissive for 3D/WebGL browser origins)         │
-│  │   └── Plugin: rate-limiting            (120 req/min burst protection)                    │
+│  │   ├── Plugin: rate-limiting            (120 req/min burst protection)                    │
+│  │   └── Plugin: request-transformer      (Option 2: Auto-injects backend Bearer token)     │
 │  ├── Service: imops-twin-realtime-service (Path: /ws, /socket.io)                           │
 │  │   ├── Timeouts: read=300s, write=300s  (Long-lived persistent WebSocket streaming)      │
 │  │   └── Plugin: cors                     (Allows WebSocket handshake headers)              │
