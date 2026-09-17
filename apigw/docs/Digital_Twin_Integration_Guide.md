@@ -4,7 +4,10 @@
 **Target Audience:** Digital Twin Engineering Teams (Vizzio, Taylor, Proscalar, Unreal/Unity/Three.js Developers)  
 **Gateway Entrypoint:** Kong Gateway OSS 3.9 (HTTP/WS Port: `8088`, HTTPS/WSS Port: `8443`)  
 **Protocols:** REST (HTTP/1.1 JSON), WebSocket (RFC 6455 over Socket.IO / Engine.IO v4)  
-**Reference Simulator:** `twin_simulator.html`
+**Reference Simulator:** [`twin_simulator.html`](twin_simulator.html)
+
+![Vizzio Digital Twin Kong Integration Simulator](twin_simulation.png)
+*Figure 1: Reference Digital Twin Simulator ([`twin_simulator.html`](twin_simulator.html)) demonstrating real-time WebSocket push ingress, periodic REST reconciliation (30s), live alert cards, and Kong Gateway egress audit logs.*
 
 ---
 
@@ -486,4 +489,45 @@ Use these quick tests to verify each step of the integration pipeline:
 | **Gateway Auth** | `curl.exe -i -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM" http://localhost:8088/api/visualization/hierarchy` | `HTTP/1.1 200 OK` with JSON site list |
 | **WebSocket Upgrade** | `curl.exe -i --max-time 3 -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhl..." "http://localhost:8088/socket.io/?EIO=4&transport=websocket"` | `HTTP/1.1 101 Switching Protocols` |
 | **Trigger Live Incident** | `curl.exe -i -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM" http://localhost:8088/va/sov-38alt-l4-icc-1-crowding` | `HTTP/1.1 200 OK` with `INC-2609-0008x` ticket |
-| **Interactive Simulator** | Open [twin_simulator.html](file:///c:/Projects/cde/apigw/docs/twin_simulator.html) in browser | Green `Connected (Kong :8088)` status |
+| **Interactive Simulator** | Open [`twin_simulator.html`](twin_simulator.html) in browser | Green `Connected (Kong :8088)` status |
+
+---
+
+## 5. Visual Reference Breakdown: `twin_simulation.png`
+
+The bundled simulator screenshot demonstrates the end-to-end integration running against live Kong Gateway (`:8088`):
+
+![Simulator Layout Breakdown](twin_simulation.png)
+*Figure 2: Component Breakdown of the Dual-Mode Digital Twin HUD.*
+
+### Key UI Subsystems Mapped to 3D Twin Modules:
+
+1. **Header & Connection Bar (Top):**
+   * **Kong Proxy Host:** Configured to `http://localhost:8088`.
+   * **Basic Auth Credentials:** Authenticates user `vizzio@imops.local` with Gateway-managed consumer key.
+   * **Transport Protocol:** Engine.IO v4 over WebSocket (`/socket.io/?EIO=4&transport=websocket`).
+
+2. **Left Panel — Tier 2: REST Periodic Reconciliation Loop:**
+   * **Telemetry HUD Cards:** Tracks Active Site (`SOV_38ALT`), Active Floors (`6`), 3D Zones (`13`), Total Incidents (`18`), and Kong round-trip latency (`255ms`).
+   * **Reconciliation Interval Selector:** Allows runtime toggling between 30s, 60s, 120s, or on-demand manual polling.
+   * **Synchronized Spatial Tree:** Renders building hierarchy and highlights floors containing active alarms (`Level 4: ICC War Room - 18 Incidents (1 Active)`).
+
+3. **Right Panel — Tier 1: Real-Time WebSocket Push & 2-Way Commands:**
+   * **Status Badge:** Live connection indicator showing `• Connected (Kong :8088)`.
+   * **Portfolio Multi-Site Subscription:** `Subscribe All User Sites` automatically discovers user site permissions and joins corresponding rooms (`subscribe_sites`).
+   * **3D Viewport Controls:** Triggers virtual camera zoom (Level 4 War Room), test alarms, or keep-alive pings (`2 -> 3`).
+   * **Live Pushed Alerts Stream:** Instant HUD notification cards displaying incident details (`INC-2609-00083`) with interactive 2-way `Acknowledge` action.
+
+4. **Bottom Panel — Kong Gateway Egress Audit Stream:**
+   * High-resolution log terminal displaying real-time WebSocket frames (`[WS]`) interleaved with background REST validation checks (`[REST]`).
+
+---
+
+## 6. Postman Resources & Artifacts
+
+All accompanying testing collections and environment files are available in the repository:
+* **Postman Collection:** [`apigw/postman/SOV_38ALT_VA_Triggers.postman_collection.json`](../postman/SOV_38ALT_VA_Triggers.postman_collection.json)
+* **Postman Environment:** [`apigw/postman/iMOPS_Kong_Gateway.postman_environment.json`](../postman/iMOPS_Kong_Gateway.postman_environment.json)
+* **Interactive Web Simulator:** [`apigw/docs/twin_simulator.html`](twin_simulator.html)
+* **Simulator Screenshot:** [`apigw/docs/twin_simulation.png`](twin_simulation.png)
+
