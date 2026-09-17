@@ -254,8 +254,8 @@
     /* Metric Grid */
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
     }
 
     .metric-card {
@@ -279,6 +279,15 @@
       text-transform: uppercase;
       margin-top: 4px;
       letter-spacing: 0.5px;
+    }
+
+    @keyframes flashPulse {
+      0% { transform: scale(1.1); color: var(--accent-cyan); }
+      50% { box-shadow: 0 0 16px rgba(0, 229, 255, 0.6); }
+      100% { transform: scale(1); }
+    }
+    .flash-pulse {
+      animation: flashPulse 0.8s ease;
     }
 
     /* Hierarchy Tree Box */
@@ -307,6 +316,14 @@
     .floor-row:hover {
       background: rgba(0, 229, 255, 0.08);
       cursor: pointer;
+    }
+
+    .floor-row.highlighted-floor {
+      background: rgba(0, 229, 255, 0.25) !important;
+      border: 1px solid var(--accent-cyan) !important;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.6);
+      transform: translateX(6px);
+      transition: all 0.3s ease;
     }
 
     /* Polling Control */
@@ -452,6 +469,48 @@
       color: var(--accent-cyan);
     }
 
+    .btn-cmd-primary {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .btn-cmd-primary:hover {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: var(--accent-emerald);
+      color: #fff;
+    }
+
+    .btn-cmd-danger {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #f87171;
+    }
+
+    .btn-cmd-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: var(--accent-crimson);
+      color: #fff;
+    }
+
+    .btn-clear {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      transition: all 0.15s;
+    }
+
+    .btn-clear:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: var(--accent-crimson);
+      color: #fff;
+    }
+
     /* Bottom Live Log Terminal */
     footer {
       border-top: 1px solid var(--border-subtle);
@@ -543,7 +602,7 @@
           <div class="panel-icon icon-rest">REST</div>
           <span>Periodic Reconciliation Loop</span>
         </div>
-        <div class="status-pill status-active" id="reconcilStatus">Polling (5s)</div>
+        <div class="status-pill status-active" id="reconcilStatus">Polling (30s)</div>
       </div>
 
       <div class="panel-body">
@@ -561,6 +620,10 @@
             <div class="metric-val" id="valZones">13</div>
             <div class="metric-lbl">3D Zones</div>
           </div>
+          <div class="metric-card" id="cardIncidents">
+            <div class="metric-val" id="valIncidents" style="color:var(--accent-amber);">14</div>
+            <div class="metric-lbl">Total Incidents</div>
+          </div>
           <div class="metric-card">
             <div class="metric-val" id="valLatency">-- ms</div>
             <div class="metric-lbl">Kong Latency</div>
@@ -571,9 +634,9 @@
         <div class="poll-bar">
           <span>Reconciliation Poll Interval:</span>
           <div class="poll-controls">
-            <button class="btn-chip" onclick="setPollInterval(2000, this)">2s</button>
-            <button class="btn-chip active" onclick="setPollInterval(5000, this)">5s</button>
-            <button class="btn-chip" onclick="setPollInterval(10000, this)">10s</button>
+            <button class="btn-chip active" onclick="setPollInterval(30000, this)">30s</button>
+            <button class="btn-chip" onclick="setPollInterval(60000, this)">60s</button>
+            <button class="btn-chip" onclick="setPollInterval(120000, this)">120s</button>
             <button class="btn-chip" onclick="triggerManualReconcil()">Manual Poll</button>
           </div>
         </div>
@@ -586,7 +649,7 @@
           <div class="floor-row"><span>🏢 Building 1: SOV @ 38ALT HQ</span><span style="color:var(--accent-emerald);">Synchronized</span></div>
           <div class="floor-row"><span>├─ Level 6: Rooftop West</span><span>3 Devices</span></div>
           <div class="floor-row"><span>├─ Level 5: Cyber Room</span><span>7 Devices</span></div>
-          <div class="floor-row"><span>├─ Level 4: ICC War Room</span><span style="color:var(--accent-amber);">2 Active Incidents</span></div>
+          <div class="floor-row" id="rowLevel4"><span>├─ Level 4: ICC War Room</span><span id="valL4Count" style="color:var(--accent-amber);">14 Incidents (1 Active)</span></div>
           <div class="floor-row"><span>├─ Level 3: Executive Offices</span><span>8 Devices</span></div>
           <div class="floor-row"><span>├─ Level 2: Main Reception Lobby</span><span>6 Devices</span></div>
           <div class="floor-row"><span>└─ Level 1: Ground Entrance & Gate</span><span>4 Devices</span></div>
@@ -607,7 +670,22 @@
       <div class="panel-body">
         <!-- Interactive 2-Way Command Panel -->
         <div class="command-box">
-          <h4>Two-Way Digital Twin Commands (Over Open Socket)</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">Two-Way Commands & Multi-Site Subscriptions</h4>
+            <span id="subSitesCounter" style="font-size: 0.72rem; color: var(--accent-emerald); font-family: var(--font-mono);">(Subscribed: 1 site)</span>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Portfolio Multi-Site Subscription:</div>
+          <div class="command-buttons" style="margin-bottom: 12px;">
+            <button class="btn-cmd btn-cmd-primary" id="btnSubAll" onclick="subscribeAllUserSites()">
+              🌐 Subscribe All User Sites
+            </button>
+            <button class="btn-cmd btn-cmd-danger" id="btnUnsubAll" onclick="unsubscribeAllSites()">
+              🚫 Unsubscribe All
+            </button>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Active 3D Twin Viewport:</div>
           <div class="command-buttons">
             <button class="btn-cmd" onclick="sendWsCommand('SUBSCRIBE', { topic: 'site:SOV @ 38ALT:L4' })">
               🎯 Focus Level 4 War Room
@@ -622,8 +700,11 @@
         </div>
 
         <!-- Live Real-Time Feed -->
-        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; display: flex; justify-content: space-between;">
-          <span>Live Pushed Alerts</span>
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>Live Pushed Alerts</span>
+            <button onclick="clearAlertsFeed()" class="btn-clear" title="Clear alerts feed">Clear</button>
+          </div>
           <span id="alertCounter" style="color: var(--accent-cyan); font-family: var(--font-mono);">0 Active</span>
         </div>
 
@@ -646,7 +727,7 @@
   </footer>
 
   <script>
-    let pollIntervalMs = 5000;
+    let pollIntervalMs = 30000;
     let pollTimer = null;
     let socket = null;
     let incidentCount = 0;
@@ -668,6 +749,31 @@
     }
 
     // 1. Reconciliation Poller (REST via Kong)
+    let knownIncidentIds = new Set();
+    let isReconcilInitialized = false;
+    let incidentState = { total: 14, active: 1 };
+
+    function updateIncidentDisplay(total, active, isOptimistic = false) {
+      incidentState.total = total;
+      incidentState.active = active;
+
+      const valIncEl = document.getElementById('valIncidents');
+      const valL4El = document.getElementById('valL4Count');
+
+      if (valIncEl) {
+        valIncEl.innerText = total;
+        if (isOptimistic) {
+          valIncEl.classList.remove('flash-pulse');
+          void valIncEl.offsetWidth; // re-trigger css keyframe
+          valIncEl.classList.add('flash-pulse');
+        }
+      }
+
+      if (valL4El) {
+        valL4El.innerText = `${total} Incidents (${active} Active)`;
+      }
+    }
+
     async function executeReconcil() {
       const kongBase = document.getElementById('kongHost').value.trim();
       const user = document.getElementById('authUser').value.trim();
@@ -676,10 +782,9 @@
       const startTime = performance.now();
 
       try {
+        // 1. Fetch Spatial Hierarchy
         const response = await fetch(`${kongBase}/api/visualization/hierarchy?siteName=SOV%20%40%2038ALT&tree=true`, {
-          headers: {
-            'Authorization': `Basic ${base64Auth}`
-          }
+          headers: { 'Authorization': `Basic ${base64Auth}` }
         });
 
         const latency = Math.round(performance.now() - startTime);
@@ -700,8 +805,92 @@
         } else {
           logMessage('REST', `GET /api/visualization/hierarchy -> ${response.status} ${response.statusText}`);
         }
+
+        // 2. Fetch Active Incidents for SOV @ 38ALT (Reconciliation Ground Truth)
+        try {
+          const incResp = await fetch(`${kongBase}/api/visualization/incidents?siteName=SOV%20%40%2038ALT&daysBack=365&page=1&limit=10`, {
+            headers: { 'Authorization': `Basic ${base64Auth}` }
+          });
+
+          if (incResp.ok) {
+            const incJson = await incResp.json();
+            if (incJson.data && incJson.data.items) {
+              handleReconcilIncidents(incJson.data);
+            }
+          }
+        } catch (e) {
+          // ignore incident poll error
+        }
+
       } catch (err) {
         logMessage('REST', `Fetch Error: ${err.message}`);
+      }
+    }
+
+    function handleReconcilIncidents(data) {
+      const items = data.items || [];
+      const summary = data.summary || {};
+      const dbTotal = summary.total || items.length;
+      const dbActive = summary.active || 0;
+      const prevTotal = incidentState.total;
+      const drift = dbTotal - prevTotal;
+
+      // Overwrite in-memory state with authoritative DB ground truth
+      updateIncidentDisplay(dbTotal, dbActive, false);
+
+      if (items.length === 0) return;
+
+      // On initial sync: index existing incidents so we don't spam alerts
+      if (!isReconcilInitialized) {
+        items.forEach(item => {
+          const id = item.incidentNumber || item._id;
+          if (id) knownIncidentIds.add(id);
+        });
+        isReconcilInitialized = true;
+        logMessage('REST', `Initial sync: Indexed ${knownIncidentIds.size} incidents from database (${dbTotal} total).`);
+        return;
+      }
+
+      if (drift !== 0) {
+        logMessage('REST', `🔄 [Count Reconciled]: Ground truth synced from DB: ${dbTotal} (${drift > 0 ? '+' + drift + ' caught up' : drift + ' adjusted'})`);
+      } else {
+        logMessage('REST', `✓ [Count Verified]: Ground truth in sync (${dbTotal} total, ${dbActive} active)`);
+      }
+
+      // On subsequent polls: only process genuinely NEW items that weren't caught via WebSocket
+      const newItems = items.filter(item => {
+        const id = item.incidentNumber || item._id;
+        return id && !knownIncidentIds.has(id);
+      });
+
+      if (newItems.length > 0) {
+        newItems.forEach(latest => {
+          const id = latest.incidentNumber || latest._id;
+          knownIncidentIds.add(id);
+
+          logMessage('REST', `🚨 [RECONCILED INCIDENT]: ${id} - ${latest.eventName || latest.title || latest.incidenttype}`);
+
+          const l4 = document.getElementById('rowLevel4');
+          if (l4) {
+            l4.classList.add('highlighted-floor');
+            setTimeout(() => l4.classList.remove('highlighted-floor'), 4000);
+          }
+
+          handleIncomingWsEvent({
+            type: 'INCIDENT_ALERT',
+            fromReconciler: true,
+            incident: {
+              incidentNumber: id,
+              id: id,
+              title: latest.eventName || latest.title || latest.incidenttype,
+              building: latest.building,
+              floor: latest.floor || 'Level 4',
+              zone: latest.zone || 'Lift Lobby',
+              severity: (latest.priority || 'MEDIUM').toUpperCase(),
+              detectedAt: latest.detectedAt || new Date().toISOString()
+            }
+          });
+        });
       }
     }
 
@@ -838,35 +1027,83 @@
       if (data.type === 'WELCOME') {
         logMessage('WS', `Server Greeting: ${data.message}`);
       } else if (data.type === 'INCIDENT_ALERT') {
-        const inc = data.incident;
-        incidentCount++;
-        document.getElementById('alertCounter').innerText = `${incidentCount} Active`;
+        const inc = data.incident || {};
+        const incId = inc.incidentNumber || inc.id || inc._id || ('INC-' + Math.floor(1000 + Math.random() * 9000));
+        const incTitle = inc.eventName || inc.title || inc.incidenttype || 'Active Alert';
+        const incZone = [inc.building, inc.floor, inc.zone].filter(Boolean).join(' • ') || inc.zone || 'Level 4 Lift Lobby';
+
+        // Deduplication: prevent duplicate card if already in feed
+        if (document.getElementById(`alert-${incId}`)) {
+          return;
+        }
 
         const feed = document.getElementById('streamFeed');
+
+        // Remove empty state message if present
+        if (feed.querySelector('div[style*="text-align: center"]')) {
+          feed.innerHTML = '';
+        }
+
+        // Keep feed neat: cap to max 4 visible cards
+        while (feed.children.length >= 4) {
+          feed.removeChild(feed.lastElementChild);
+        }
+
         const card = document.createElement('div');
         card.className = 'alert-card';
-        card.id = `alert-${inc.id}`;
+        card.id = `alert-${incId}`;
         card.innerHTML = `
           <div class="alert-info">
-            <h4><span style="color:var(--accent-crimson);">⚠️</span> ${inc.title}</h4>
-            <p>${inc.zone} • ID: ${inc.id}</p>
+            <h4><span style="color:var(--accent-crimson);">⚠️</span> ${incTitle}</h4>
+            <p>${incZone} • ID: <code style="color:var(--accent-cyan); font-weight:600;">${incId}</code></p>
           </div>
-          <button class="btn-ack" onclick="acknowledgeIncident('${inc.id}', this)">Acknowledge</button>
+          <button class="btn-ack" onclick="acknowledgeIncident('${incId}', this)">Acknowledge</button>
         `;
         feed.prepend(card);
+
+        updateAlertCounter();
+
+        // If event arrived via WebSocket (not reconciler), optimistically increment count immediately
+        if (!data.fromReconciler) {
+          updateIncidentDisplay(incidentState.total + 1, incidentState.active + 1, true);
+          logMessage('WS', `⚡ [Live Socket Push]: +1 Incident -> Optimistic total: ${incidentState.total}`);
+        }
       } else if (data.type === 'INCIDENT_UPDATED') {
         const card = document.getElementById(`alert-${data.incidentId}`);
         if (card) {
           card.classList.add('acknowledged');
           const btn = card.querySelector('button');
           if (btn) {
-            btn.innerText = 'Acknowledged';
+            btn.innerText = 'Acknowledged ✓';
             btn.disabled = true;
           }
+          updateAlertCounter();
         }
         logMessage('WS', `Incident ${data.incidentId} status updated to ${data.status}`);
       } else if (data.type === 'PONG') {
         logMessage('WS', `Received PONG heartbeat from upstream`);
+      }
+    }
+
+    function clearAlertsFeed() {
+      const feed = document.getElementById('streamFeed');
+      if (feed) {
+        feed.innerHTML = `
+          <div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; margin-top: 40px;">
+            Alerts cleared. Waiting for new real-time incidents...
+          </div>
+        `;
+      }
+      updateAlertCounter();
+      logMessage('CMD', 'Cleared Live Pushed Alerts feed.');
+    }
+
+    function updateAlertCounter() {
+      const feed = document.getElementById('streamFeed');
+      const cards = feed ? feed.querySelectorAll('.alert-card:not(.acknowledged)') : [];
+      const counter = document.getElementById('alertCounter');
+      if (counter) {
+        counter.innerText = `${cards.length} Active`;
       }
     }
 
@@ -877,6 +1114,7 @@
         return;
       }
       const protocol = document.getElementById('wsProtocol').value;
+
       if (protocol === 'socketio') {
         if (type === 'PING') {
           socket.send('2');
@@ -892,20 +1130,197 @@
           const siteName = payload.topic ? payload.topic.replace(/^site:/, '') : (document.getElementById('valSite').innerText || 'SOV @ 38ALT');
           socket.send(`42["subscribe",{"siteName":"${siteName}"}]`);
           logMessage('CMD', `Sent Socket.IO subscribe: site:${siteName}`);
+
+          // Visual feedback: Highlight Level 4 in Spatial Tree
+          const l4 = document.getElementById('rowLevel4');
+          if (l4) {
+            l4.classList.add('highlighted-floor');
+            l4.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(() => l4.classList.remove('highlighted-floor'), 3500);
+          }
+          return;
+        }
+        if (type === 'TRIGGER_INCIDENT') {
+          socket.send(`42["trigger_incident",${JSON.stringify(payload)}]`);
+          logMessage('CMD', `Sent Socket.IO: trigger_incident ${JSON.stringify(payload)}`);
+
+          // Visual feedback: push alarm into the live feed
+          handleIncomingWsEvent({
+            type: 'INCIDENT_ALERT',
+            incident: {
+              id: 'SIM-' + Math.floor(1000 + Math.random() * 9000),
+              title: payload.title || 'Crowd Gathering in L4 ICC',
+              zone: payload.zone || 'L4 ICC War Room',
+              severity: payload.severity || 'HIGH',
+              time: new Date().toISOString()
+            }
+          });
           return;
         }
         socket.send(`42["${type.toLowerCase()}",${JSON.stringify(payload)}]`);
         logMessage('CMD', `Sent Socket.IO: ${type.toLowerCase()} ${JSON.stringify(payload)}`);
         return;
       }
+
+      // Custom WS protocol
       const packet = { type, ...payload, timestamp: new Date().toISOString() };
       socket.send(JSON.stringify(packet));
       logMessage('CMD', `Sent Command: ${type} ${JSON.stringify(payload)}`);
+
+      if (type === 'SUBSCRIBE') {
+        const l4 = document.getElementById('rowLevel4');
+        if (l4) {
+          l4.classList.add('highlighted-floor');
+          setTimeout(() => l4.classList.remove('highlighted-floor'), 3500);
+        }
+      } else if (type === 'TRIGGER_INCIDENT') {
+        handleIncomingWsEvent({
+          type: 'INCIDENT_ALERT',
+          incident: {
+            id: 'SIM-' + Math.floor(1000 + Math.random() * 9000),
+            title: payload.title || 'Crowd Gathering in L4 ICC',
+            zone: payload.zone || 'L4 ICC War Room',
+            severity: payload.severity || 'HIGH',
+            time: new Date().toISOString()
+          }
+        });
+      }
     }
 
     function acknowledgeIncident(id, btn) {
       sendWsCommand('ACKNOWLEDGE_INCIDENT', { incidentId: id, user: 'vizzio_twin_operator' });
-      btn.innerText = 'Updating...';
+      btn.innerText = 'Acknowledged ✓';
+      btn.disabled = true;
+      btn.style.borderColor = 'var(--accent-emerald)';
+      btn.style.color = 'var(--accent-emerald)';
+      
+      const card = document.getElementById(`alert-${id}`);
+      if (card) {
+        card.classList.add('acknowledged');
+        setTimeout(() => {
+          card.style.opacity = '0.35';
+          card.style.transition = 'opacity 0.4s ease';
+          updateAlertCounter();
+        }, 600);
+      }
+    }
+
+    // --- Multi-Site Subscriptions via Hierarchy API ---
+    let subscribedSites = new Set(['SOV @ 38ALT']);
+
+    function updateSubscribedCounter() {
+      const counter = document.getElementById('subSitesCounter');
+      if (counter) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          counter.innerText = '(Not Connected)';
+          counter.style.color = 'var(--text-muted)';
+        } else if (subscribedSites.size === 0) {
+          counter.innerText = '(Subscribed: 0 sites)';
+          counter.style.color = 'var(--text-muted)';
+        } else {
+          counter.innerText = `(Subscribed: ${subscribedSites.size} site${subscribedSites.size > 1 ? 's' : ''})`;
+          counter.style.color = 'var(--accent-emerald)';
+        }
+      }
+    }
+
+    async function subscribeAllUserSites() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        alert('WebSocket is not connected! Click "Connect Stream" first.');
+        return;
+      }
+
+      const btn = document.getElementById('btnSubAll');
+      const origText = btn.innerHTML;
+      btn.innerText = 'Fetching sites...';
+      btn.disabled = true;
+
+      const kongBase = document.getElementById('kongHost').value.trim();
+      const user = document.getElementById('authUser').value.trim();
+      const pass = document.getElementById('authPass').value.trim();
+      const base64Auth = btoa(`${user}:${pass}`);
+
+      try {
+        logMessage('CMD', `Fetching user sites via GET ${kongBase}/api/visualization/hierarchy ...`);
+        const response = await fetch(`${kongBase}/api/visualization/hierarchy?limit=50`, {
+          headers: { 'Authorization': `Basic ${base64Auth}` }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Hierarchy API returned ${response.status} ${response.statusText}`);
+        }
+
+        const resJson = await response.json();
+        let siteList = [];
+
+        if (resJson.data && Array.isArray(resJson.data.items)) {
+          siteList = resJson.data.items.map(item => item.name || item.code).filter(Boolean);
+        } else if (resJson.data && Array.isArray(resJson.data)) {
+          siteList = resJson.data.map(item => item.name || item.code).filter(Boolean);
+        }
+
+        // Always include currently selected site
+        const currentSite = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
+        if (!siteList.includes(currentSite)) {
+          siteList.unshift(currentSite);
+        }
+
+        logMessage('CMD', `Found ${siteList.length} assigned sites. Emitting WebSocket subscriptions...`);
+
+        const protocol = document.getElementById('wsProtocol').value;
+
+        if (protocol === 'socketio') {
+          // Send batch subscription event
+          socket.send(`42["subscribe_sites",{"sites":${JSON.stringify(siteList)}}]`);
+          // Also send individual subscription for initial sites
+          siteList.slice(0, 20).forEach(s => {
+            socket.send(`42["subscribe",{"siteName":"${s}"}]`);
+          });
+        } else {
+          socket.send(JSON.stringify({ action: 'SUBSCRIBE_ALL', sites: siteList }));
+        }
+
+        siteList.forEach(s => subscribedSites.add(s));
+        updateSubscribedCounter();
+
+        logMessage('WS', `Successfully subscribed to ${siteList.length} sites across user portfolio!`);
+        btn.innerHTML = `✅ Subscribed (${siteList.length} sites)`;
+        setTimeout(() => {
+          btn.innerHTML = origText;
+          btn.disabled = false;
+        }, 2500);
+
+      } catch (err) {
+        logMessage('WS', `Subscription Error: ${err.message}`);
+        btn.innerHTML = origText;
+        btn.disabled = false;
+        alert(`Failed to fetch sites from Hierarchy API: ${err.message}`);
+      }
+    }
+
+    function unsubscribeAllSites() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        alert('WebSocket is not connected! Click "Connect Stream" first.');
+        return;
+      }
+
+      const protocol = document.getElementById('wsProtocol').value;
+      const count = subscribedSites.size;
+
+      if (protocol === 'socketio') {
+        socket.send(`42["unsubscribe_all",{}]`);
+        subscribedSites.forEach(s => {
+          socket.send(`42["unsubscribe",{"siteName":"${s}"}]`);
+        });
+      } else {
+        socket.send(JSON.stringify({ action: 'UNSUBSCRIBE_ALL' }));
+      }
+
+      subscribedSites.clear();
+      updateSubscribedCounter();
+
+      logMessage('CMD', `Unsubscribed from all ${count} sites.`);
+      logMessage('WS', `All site topic streams paused (0 active subscriptions).`);
     }
 
     // Auto-start polling on page load

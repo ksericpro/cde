@@ -1,0 +1,133 @@
+{
+  "info": {
+    "_postman_id": "a9103e28-7612-4c22-b91b-sov38alt0001",
+    "name": "iMOPS - SOV @ 38ALT VA Triggers & Incidents",
+    "description": "Ready-to-use Postman collection for triggering Video Analytics (VA) alerts and creating live incidents for SOV @ 38ALT via Kong Gateway (:8088) or Upstream (:13000).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      { "key": "username", "value": "{{GATEWAY_USER}}", "type": "string" },
+      { "key": "password", "value": "{{GATEWAY_PASS}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "KONG_URL", "value": "http://localhost:8088", "type": "string" },
+    { "key": "UPSTREAM_URL", "value": "http://localhost:13000", "type": "string" },
+    { "key": "GATEWAY_USER", "value": "vizzio@imops.local", "type": "string" },
+    { "key": "GATEWAY_PASS", "value": "xAJHkkm7m3V5MhtF0xGM", "type": "string" },
+    { "key": "SITE_NAME", "value": "SOV @ 38ALT", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Kong Camera VA Triggers (Port 8088)",
+      "description": "Simulates edge IP cameras sending VA webhook triggers. Kong validates credentials, rate-limits, formats the payload, injects live timestamp, and forwards to /api/incidents/monitor.",
+      "item": [
+        {
+          "name": "L4 ICC 1 - Crowding (SOV @ 38ALT)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{KONG_URL}}/va/sov-38alt-l4-icc-1-crowding",
+              "host": ["{{KONG_URL}}"],
+              "path": ["va", "sov-38alt-l4-icc-1-crowding"]
+            },
+            "description": "Triggers CROWDING alert on Level 4 ICC 1. Kong translates this to a full incident for SOV @ 38ALT."
+          }
+        },
+        {
+          "name": "L4 Lift Lobby - Loitering (SOV @ 38ALT)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{KONG_URL}}/va/sov-38alt-l4-lift-lobby-loitering",
+              "host": ["{{KONG_URL}}"],
+              "path": ["va", "sov-38alt-l4-lift-lobby-loitering"]
+            },
+            "description": "Triggers LOITERING alert on Level 4 Lift Lobby for SOV @ 38ALT."
+          }
+        },
+        {
+          "name": "Main Gate - Fire Detection (SOV @ 38ALT)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{KONG_URL}}/va/sov-38alt-main-gate-fire",
+              "host": ["{{KONG_URL}}"],
+              "path": ["va", "sov-38alt-main-gate-fire"]
+            },
+            "description": "Triggers CRITICAL FIRE alert on Main Gate for SOV @ 38ALT."
+          }
+        },
+        {
+          "name": "Side Fencing - Intrusion (SOV @ 38ALT)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{KONG_URL}}/va/sov-38alt-side-fencing-intrusion",
+              "host": ["{{KONG_URL}}"],
+              "path": ["va", "sov-38alt-side-fencing-intrusion"]
+            },
+            "description": "Triggers PERIMETER INTRUSION alert on Side Fencing for SOV @ 38ALT."
+          }
+        },
+        {
+          "name": "Main Gate - Smoking (SOV @ 38ALT)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{KONG_URL}}/va/sov-38alt-main-gate-smoking",
+              "host": ["{{KONG_URL}}"],
+              "path": ["va", "sov-38alt-main-gate-smoking"]
+            },
+            "description": "Triggers SMOKING violation on Main Gate for SOV @ 38ALT."
+          }
+        },
+        {
+          "name": "Carpark Lot 1 - Illegal Parking (SOV @ 38ALT)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{KONG_URL}}/va/sov-38alt-carpark-lot-1-illegal-parking",
+              "host": ["{{KONG_URL}}"],
+              "path": ["va", "sov-38alt-carpark-lot-1-illegal-parking"]
+            },
+            "description": "Triggers ILLEGAL PARKING alert in Carpark Lot 1 for SOV @ 38ALT."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Custom Incident POST (Full Payload)",
+      "description": "Directly posts a comprehensive custom incident payload to /api/incidents/monitor.",
+      "item": [
+        {
+          "name": "Create Custom Incident - SOV @ 38ALT (Level 4 War Room)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site\": \"SOV @ 38ALT\",\n  \"building\": \"HQ Building\",\n  \"floor\": \"Level 4\",\n  \"zone\": \"L4 ICC War Room\",\n  \"deviceName\": \"SOV 38ALT L4 ICC 1 VA CROWDING\",\n  \"incidentType\": \"CROWDING\",\n  \"eventName\": \"Crowd Gathering in L4 ICC War Room\",\n  \"priority\": \"critical\",\n  \"mode\": \"incident\",\n  \"timestamp\": {{$timestamp}},\n  \"metadata\": {\n    \"source\": \"vizzio_va\",\n    \"associatedCamera\": \"SOV 38ALT L4 ICC 1\",\n    \"notes\": \"Triggered from Postman manual test\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{UPSTREAM_URL}}/api/incidents/monitor",
+              "host": ["{{UPSTREAM_URL}}"],
+              "path": ["api", "incidents", "monitor"]
+            },
+            "description": "Submits a full custom JSON incident for SOV @ 38ALT directly to the incident monitor API."
+          }
+        }
+      ]
+    }
+  ]
+}

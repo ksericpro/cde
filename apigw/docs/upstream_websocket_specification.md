@@ -98,7 +98,40 @@ socket.on("subscribe", (data) => {
 
 ---
 
-### 4.2 Event: `unsubscribe` (Leave Site Room)
+### 4.2 Event: `subscribe_sites` (Batch Multi-Site Subscription)
+Sent by multi-site dashboards or portfolio twins to subscribe to all assigned sites retrieved from `GET /api/visualization/hierarchy`.
+
+**Client Payload:**
+```json
+{
+  "sites": [
+    "AGUSAN DEL NORTE- BUTUAN CITY- BAAN",
+    "AGUSAN DEL NORTE-BUENAVISTA",
+    "SOV @ 38ALT"
+  ]
+}
+```
+
+**Backend Action:**
+```javascript
+socket.on("subscribe_sites", (data) => {
+  if (!data || !Array.isArray(data.sites)) return;
+  
+  data.sites.forEach(siteName => {
+    socket.join(`site:${siteName}`);
+  });
+
+  socket.emit("subscribed_sites", {
+    status: "ACTIVE",
+    count: data.sites.length,
+    timestamp: new Date().toISOString()
+  });
+});
+```
+
+---
+
+### 4.3 Event: `unsubscribe` (Leave Single Site Room)
 Sent when the operator switches sites in the 3D viewer.
 
 **Client Payload:**
@@ -119,7 +152,25 @@ socket.on("unsubscribe", (data) => {
 
 ---
 
-### 4.3 Event: `acknowledge_incident` (Operator 2-Way Command)
+### 4.4 Event: `unsubscribe_all` (Leave All Site Rooms)
+Sent when an operator mutes or pauses all live incoming telemetry.
+
+**Backend Action:**
+```javascript
+socket.on("unsubscribe_all", () => {
+  // Leave all rooms except private socket id room
+  for (const room of socket.rooms) {
+    if (room !== socket.id) {
+      socket.leave(room);
+    }
+  }
+  socket.emit("unsubscribed_all", { status: "PAUSED", timestamp: new Date().toISOString() });
+});
+```
+
+---
+
+### 4.5 Event: `acknowledge_incident` (Operator 2-Way Command)
 Sent when an operator clicks "Acknowledge" inside the 3D twin scene.
 
 **Client Payload:**
