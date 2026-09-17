@@ -751,14 +751,11 @@
           logMessage('WS', `Channel Upgraded (101 Switching Protocols). Stream ready.`);
           document.getElementById('streamFeed').innerHTML = '';
 
-          // Send site subscription if Socket.IO or custom WS
-          const siteName = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
-          if (protocol === 'socketio') {
-            // Engine.IO message frame prefix '42'
-            socket.send(`42["subscribe",{"siteName":"${siteName}"}]`);
-            logMessage('WS', `Subscribed to site topic: site:${siteName}`);
-          } else {
+          // Only custom WS sends subscribe immediately; Socket.IO waits for handshake (0 -> 40 -> 42)
+          if (protocol !== 'socketio') {
+            const siteName = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
             socket.send(JSON.stringify({ action: 'SUBSCRIBE', topic: `site:${siteName}` }));
+            logMessage('WS', `Subscribed to site topic: site:${siteName}`);
           }
         };
 
@@ -767,10 +764,27 @@
           // Handle Engine.IO ping
           if (raw === '2') {
             socket.send('3'); // pong
+            logMessage('WS', `Received Server Ping (2) -> Sent Pong (3)`);
+            return;
+          }
+          if (raw === '3') {
+            logMessage('WS', `Received Server Pong (3) Heartbeat ACK`);
             return;
           }
           if (raw.startsWith('0')) {
             logMessage('WS', `Engine.IO Session Initialized: ${raw.slice(1)}`);
+            if (protocol === 'socketio') {
+              // Engine.IO v4 protocol: Send '40' to connect to default Socket.IO namespace
+              socket.send('40');
+              logMessage('WS', `Sent Socket.IO Namespace Connect Handshake (40)`);
+            }
+            return;
+          }
+          if (raw.startsWith('40')) {
+            logMessage('WS', `Socket.IO Namespace Connected: ${raw}`);
+            const siteName = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
+            socket.send(`42["subscribe",{"siteName":"${siteName}"}]`);
+            logMessage('WS', `Subscribed to site topic: site:${siteName}`);
             return;
           }
           if (raw.startsWith('42')) {
@@ -782,6 +796,10 @@
                 handleIncomingWsEvent({ type: 'INCIDENT_ALERT', incident: eventPayload });
               } else if (eventName === 'incident:updated') {
                 handleIncomingWsEvent({ type: 'INCIDENT_UPDATED', ...eventPayload });
+              } else if (eventName === 'subscribed') {
+                logMessage('WS', `Subscription Confirmed: ${JSON.stringify(eventPayload)}`);
+              } else {
+                logMessage('WS', `Socket.IO Event [${eventName}]: ${JSON.stringify(eventPayload)}`);
               }
             } catch (e) {
               logMessage('WS', `Socket.IO Frame: ${raw}`);
@@ -856,6 +874,28 @@
     function sendWsCommand(type, payload = {}) {
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         alert('WebSocket is not connected! Click "Connect Stream" first.');
+        return;
+      }
+      const protocol = document.getElementById('wsProtocol').value;
+      if (protocol === 'socketio') {
+        if (type === 'PING') {
+          socket.send('2');
+          logMessage('CMD', 'Sent Engine.IO Heartbeat Ping (2)');
+          return;
+        }
+        if (type === 'ACKNOWLEDGE_INCIDENT') {
+          socket.send(`42["acknowledge_incident",${JSON.stringify(payload)}]`);
+          logMessage('CMD', `Sent Socket.IO: acknowledge_incident ${JSON.stringify(payload)}`);
+          return;
+        }
+        if (type === 'SUBSCRIBE') {
+          const siteName = payload.topic ? payload.topic.replace(/^site:/, '') : (document.getElementById('valSite').innerText || 'SOV @ 38ALT');
+          socket.send(`42["subscribe",{"siteName":"${siteName}"}]`);
+          logMessage('CMD', `Sent Socket.IO subscribe: site:${siteName}`);
+          return;
+        }
+        socket.send(`42["${type.toLowerCase()}",${JSON.stringify(payload)}]`);
+        logMessage('CMD', `Sent Socket.IO: ${type.toLowerCase()} ${JSON.stringify(payload)}`);
         return;
       }
       const packet = { type, ...payload, timestamp: new Date().toISOString() };
