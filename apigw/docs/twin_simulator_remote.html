@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Twin Kong Gateway Integration Simulator (Remote 129.126.201.249:8888)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0a0d14;
+      --bg-surface: rgba(18, 24, 38, 0.75);
+      --bg-card: rgba(26, 35, 54, 0.6);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-focus: #00e5ff;
+      --accent-cyan: #00e5ff;
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-crimson: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-ui: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: radial-gradient(circle at 20% 15%, #141f36 0%, var(--bg-base) 70%);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(10, 13, 20, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #000;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+    }
+
+    .brand-title h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-provider {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: rgba(0, 229, 255, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      font-family: var(--font-mono);
+    }
+
+    .brand-title p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Gateway Control Bar */
+    .gateway-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 14px;
+      border-radius: 12px;
+    }
+
+    .gateway-input-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+    }
+
+    .gateway-input-group label {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .gateway-input-group input {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-subtle);
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    .gateway-input-group input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .btn-connect {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      color: #000;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-connect:hover {
+      box-shadow: 0 0 14px rgba(0, 229, 255, 0.5);
+      transform: translateY(-1px);
+    }
+
+    /* Main Layout */
+    main {
+      padding: 24px 32px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .panel-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+    }
+
+    .icon-rest { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .icon-ws { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); }
+
+    .panel-body {
+      padding: 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow-y: auto;
+    }
+
+    /* Status Indicator Badge */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .status-active {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-active::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: pulse 1.5s infinite;
+    }
+
+    .status-disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--accent-crimson);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* Metric Grid */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .metric-val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+    }
+
+    .metric-lbl {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-top: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    @keyframes flashPulse {
+      0% { transform: scale(1.1); color: var(--accent-cyan); }
+      50% { box-shadow: 0 0 16px rgba(0, 229, 255, 0.6); }
+      100% { transform: scale(1); }
+    }
+    .flash-pulse {
+      animation: flashPulse 0.8s ease;
+    }
+
+    /* Hierarchy Tree Box */
+    .tree-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .floor-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      background: rgba(255, 255, 255, 0.02);
+      transition: background 0.15s;
+    }
+
+    .floor-row:hover {
+      background: rgba(0, 229, 255, 0.08);
+      cursor: pointer;
+    }
+
+    .floor-row.highlighted-floor {
+      background: rgba(0, 229, 255, 0.25) !important;
+      border: 1px solid var(--accent-cyan) !important;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.6);
+      transform: translateX(6px);
+      transition: all 0.3s ease;
+    }
+
+    /* Polling Control */
+    .poll-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      font-size: 0.8rem;
+    }
+
+    .poll-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-family: var(--font-mono);
+    }
+
+    .btn-chip.active {
+      background: rgba(0, 229, 255, 0.2);
+      color: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+    }
+
+    /* WebSocket Live Feed & Alerts */
+    .stream-feed {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .alert-card {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-left: 4px solid var(--accent-crimson);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .alert-card.acknowledged {
+      background: rgba(16, 185, 129, 0.08);
+      border-color: rgba(16, 185, 129, 0.3);
+      border-left-color: var(--accent-emerald);
+      opacity: 0.75;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .alert-info h4 {
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .alert-info p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .btn-ack {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid var(--accent-emerald);
+      color: var(--accent-emerald);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-ack:hover {
+      background: var(--accent-emerald);
+      color: #000;
+    }
+
+    /* Interactive 2-Way Command Bar */
+    .command-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .command-box h4 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .command-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-cmd {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-cmd:hover {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .btn-cmd-primary {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .btn-cmd-primary:hover {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: var(--accent-emerald);
+      color: #fff;
+    }
+
+    .btn-cmd-danger {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #f87171;
+    }
+
+    .btn-cmd-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: var(--accent-crimson);
+      color: #fff;
+    }
+
+    .btn-clear {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      transition: all 0.15s;
+    }
+
+    .btn-clear:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: var(--accent-crimson);
+      color: #fff;
+    }
+
+    /* Bottom Live Log Terminal */
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      background: #06090e;
+      padding: 14px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .log-console {
+      background: #030508;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      height: 110px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 12px;
+    }
+
+    .log-time { color: #475569; }
+    .log-type-rest { color: var(--accent-blue); }
+    .log-type-ws { color: var(--accent-emerald); }
+    .log-type-cmd { color: var(--accent-amber); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">DT</div>
+      <div class="brand-title">
+        <h1>Vizzio Digital Twin Simulator <span class="badge-provider">KONG REMOTE :8888</span></h1>
+        <p>Dual-Mode Ingress Test: Periodic Reconciliation REST + Real-time Push WebSocket</p>
+      </div>
+    </div>
+
+    <!-- Connection Settings Bar -->
+    <div class="gateway-bar">
+      <div class="gateway-input-group">
+        <label>Kong Proxy</label>
+        <input type="text" id="kongHost" value="http://129.126.201.249:8888" style="width: 220px;">
+      </div>
+      <div class="gateway-input-group">
+        <label>Username</label>
+        <input type="text" id="authUser" value="vizzio@imops.local" style="width: 150px;">
+      </div>
+      <div class="gateway-input-group">
+        <label>Password</label>
+        <input type="password" id="authPass" value="xAJHkkm7m3V5MhtF0xGM" style="width: 130px;">
+      </div>
+      <div class="gateway-input-group">
+        <label>Protocol</label>
+        <select id="wsProtocol" style="background:#0f172a; color:#f8fafc; border:1px solid #334155; border-radius:6px; padding:6px 8px; font-size:12px;">
+          <option value="socketio">Socket.IO (/socket.io)</option>
+          <option value="raw">Raw WS (/ws)</option>
+        </select>
+      </div>
+      <button class="btn-connect" id="btnConnect" onclick="toggleConnection()">Connect Stream</button>
+    </div>
+  </header>
+
+  <!-- Main Content Grid -->
+  <main>
+    <!-- Left Column: Reconcil APIs (Polling) -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon icon-rest">REST</div>
+          <span>Periodic Reconciliation Loop</span>
+        </div>
+        <div class="status-pill status-active" id="reconcilStatus">Polling (30s)</div>
+      </div>
+
+      <div class="panel-body">
+        <!-- Live Metrics Cards -->
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-val" id="valSite">SOV</div>
+            <div class="metric-lbl">Target Site</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" id="valFloors">6</div>
+            <div class="metric-lbl">Active Floors</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" id="valZones">13</div>
+            <div class="metric-lbl">3D Zones</div>
+          </div>
+          <div class="metric-card" id="cardIncidents">
+            <div class="metric-val" id="valIncidents" style="color:var(--accent-amber);">14</div>
+            <div class="metric-lbl">Total Incidents</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" id="valLatency">-- ms</div>
+            <div class="metric-lbl">Kong Latency</div>
+          </div>
+        </div>
+
+        <!-- Polling Controls -->
+        <div class="poll-bar">
+          <span>Reconciliation Poll Interval:</span>
+          <div class="poll-controls">
+            <button class="btn-chip active" onclick="setPollInterval(30000, this)">30s</button>
+            <button class="btn-chip" onclick="setPollInterval(60000, this)">60s</button>
+            <button class="btn-chip" onclick="setPollInterval(120000, this)">120s</button>
+            <button class="btn-chip" onclick="triggerManualReconcil()">Manual Poll</button>
+          </div>
+        </div>
+
+        <!-- Spatial Hierarchy Tree View -->
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+          Synchronized Spatial Tree (<span id="siteCode">SOV_38ALT</span>)
+        </div>
+        <div class="tree-box" id="hierarchyTree">
+          <div class="floor-row"><span>🏢 Building 1: SOV @ 38ALT HQ</span><span style="color:var(--accent-emerald);">Synchronized</span></div>
+          <div class="floor-row"><span>├─ Level 6: Rooftop West</span><span>3 Devices</span></div>
+          <div class="floor-row"><span>├─ Level 5: Cyber Room</span><span>7 Devices</span></div>
+          <div class="floor-row" id="rowLevel4"><span>├─ Level 4: ICC War Room</span><span id="valL4Count" style="color:var(--accent-amber);">14 Incidents (1 Active)</span></div>
+          <div class="floor-row"><span>├─ Level 3: Executive Offices</span><span>8 Devices</span></div>
+          <div class="floor-row"><span>├─ Level 2: Main Reception Lobby</span><span>6 Devices</span></div>
+          <div class="floor-row"><span>└─ Level 1: Ground Entrance & Gate</span><span>4 Devices</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Real-Time Stream (WebSocket Push & 2-Way Commands) -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon icon-ws">WS</div>
+          <span>Real-Time Push & Two-Way Commands</span>
+        </div>
+        <div class="status-pill status-disconnected" id="wsStatus">Disconnected</div>
+      </div>
+
+      <div class="panel-body">
+        <!-- Interactive 2-Way Command Panel -->
+        <div class="command-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">Two-Way Commands & Multi-Site Subscriptions</h4>
+            <span id="subSitesCounter" style="font-size: 0.72rem; color: var(--accent-emerald); font-family: var(--font-mono);">(Subscribed: 1 site)</span>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Portfolio Multi-Site Subscription:</div>
+          <div class="command-buttons" style="margin-bottom: 12px;">
+            <button class="btn-cmd btn-cmd-primary" id="btnSubAll" onclick="subscribeAllUserSites()">
+              🌐 Subscribe All User Sites
+            </button>
+            <button class="btn-cmd btn-cmd-danger" id="btnUnsubAll" onclick="unsubscribeAllSites()">
+              🚫 Unsubscribe All
+            </button>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Active 3D Twin Viewport:</div>
+          <div class="command-buttons">
+            <button class="btn-cmd" onclick="sendWsCommand('SUBSCRIBE', { topic: 'site:SOV @ 38ALT:L4' })">
+              🎯 Focus Level 4 War Room
+            </button>
+            <button class="btn-cmd" onclick="sendWsCommand('TRIGGER_INCIDENT', { title: 'Crowd Gathering in L4 ICC', zone: 'L4 ICC War Room', severity: 'HIGH' })">
+              🚨 Trigger Sim Alarm
+            </button>
+            <button class="btn-cmd" onclick="sendWsCommand('PING')">
+              ⚡ Send Ping Heartbeat
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Real-Time Feed -->
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>Live Pushed Alerts</span>
+            <button onclick="clearAlertsFeed()" class="btn-clear" title="Clear alerts feed">Clear</button>
+          </div>
+          <span id="alertCounter" style="color: var(--accent-cyan); font-family: var(--font-mono);">0 Active</span>
+        </div>
+
+        <div class="stream-feed" id="streamFeed">
+          <div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; margin-top: 40px;">
+            Click <b>Connect Stream</b> to establish WebSocket channel via Kong Gateway (<code style="color:var(--accent-cyan);">ws://129.126.201.249:8888/ws</code>)
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom Log Terminal -->
+  <footer>
+    <div class="log-header">
+      <span>Kong Gateway Egress Audit Stream</span>
+      <span id="logSummary">Kong: 129.126.201.249:8888</span>
+    </div>
+    <div class="log-console" id="logConsole"></div>
+  </footer>
+
+  <script>
+    let pollIntervalMs = 30000;
+    let pollTimer = null;
+    let socket = null;
+    let incidentCount = 0;
+    let userToken = null;
+
+    // Append log to bottom console
+    function logMessage(type, message) {
+      const consoleEl = document.getElementById('logConsole');
+      const now = new Date().toTimeString().split(' ')[0];
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+
+      let typeClass = 'log-type-rest';
+      if (type === 'WS') typeClass = 'log-type-ws';
+      if (type === 'CMD') typeClass = 'log-type-cmd';
+
+      entry.innerHTML = `<span class="log-time">[${now}]</span> <span class="${typeClass}">[${type}]</span> <span>${message}</span>`;
+      consoleEl.prepend(entry);
+    }
+
+    // 1. Reconciliation Poller (REST via Kong)
+    let knownIncidentIds = new Set();
+    let isReconcilInitialized = false;
+    let incidentState = { total: 14, active: 1 };
+
+    function updateIncidentDisplay(total, active, isOptimistic = false) {
+      incidentState.total = total;
+      incidentState.active = active;
+
+      const valIncEl = document.getElementById('valIncidents');
+      const valL4El = document.getElementById('valL4Count');
+
+      if (valIncEl) {
+        valIncEl.innerText = total;
+        if (isOptimistic) {
+          valIncEl.classList.remove('flash-pulse');
+          void valIncEl.offsetWidth; // re-trigger css keyframe
+          valIncEl.classList.add('flash-pulse');
+        }
+      }
+
+      if (valL4El) {
+        valL4El.innerText = `${total} Incidents (${active} Active)`;
+      }
+    }
+
+    async function executeReconcil() {
+      const kongBase = document.getElementById('kongHost').value.trim();
+      const user = document.getElementById('authUser').value.trim();
+      const pass = document.getElementById('authPass').value.trim();
+      const base64Auth = btoa(`${user}:${pass}`);
+      const startTime = performance.now();
+
+      try {
+        // 1. Fetch Spatial Hierarchy
+        const response = await fetch(`${kongBase}/api/visualization/hierarchy?siteName=SOV%20%40%2038ALT&tree=true`, {
+          headers: { 'Authorization': `Basic ${base64Auth}` }
+        });
+
+        const latency = Math.round(performance.now() - startTime);
+        document.getElementById('valLatency').innerText = `${latency} ms`;
+
+        if (response.ok) {
+          const resJson = await response.json();
+          logMessage('REST', `GET /api/visualization/hierarchy -> 200 OK (${latency}ms)`);
+          
+          if (resJson.data) {
+            document.getElementById('valFloors').innerText = resJson.data.totalFloors || 6;
+            document.getElementById('valZones').innerText = resJson.data.totalZones || 13;
+            if (resJson.data.site) {
+              document.getElementById('valSite').innerText = resJson.data.site.code || 'SOV';
+              document.getElementById('siteCode').innerText = resJson.data.site.name || 'SOV @ 38ALT';
+            }
+          }
+        } else {
+          logMessage('REST', `GET /api/visualization/hierarchy -> ${response.status} ${response.statusText}`);
+        }
+
+        // 2. Fetch Active Incidents for SOV @ 38ALT (Reconciliation Ground Truth)
+        try {
+          const incResp = await fetch(`${kongBase}/api/visualization/incidents?siteName=SOV%20%40%2038ALT&daysBack=365&page=1&limit=10`, {
+            headers: { 'Authorization': `Basic ${base64Auth}` }
+          });
+
+          if (incResp.ok) {
+            const incJson = await incResp.json();
+            if (incJson.data && incJson.data.items) {
+              handleReconcilIncidents(incJson.data);
+            }
+          }
+        } catch (e) {
+          // ignore incident poll error
+        }
+
+      } catch (err) {
+        logMessage('REST', `Fetch Error: ${err.message}`);
+      }
+    }
+
+    function handleReconcilIncidents(data) {
+      const items = data.items || [];
+      const summary = data.summary || {};
+      const dbTotal = summary.total || items.length;
+      const dbActive = summary.active || 0;
+      const prevTotal = incidentState.total;
+      const drift = dbTotal - prevTotal;
+
+      // Overwrite in-memory state with authoritative DB ground truth
+      updateIncidentDisplay(dbTotal, dbActive, false);
+
+      if (items.length === 0) return;
+
+      // On initial sync: index existing incidents so we don't spam alerts
+      if (!isReconcilInitialized) {
+        items.forEach(item => {
+          const id = item.incidentNumber || item._id;
+          if (id) knownIncidentIds.add(id);
+        });
+        isReconcilInitialized = true;
+        logMessage('REST', `Initial sync: Indexed ${knownIncidentIds.size} incidents from database (${dbTotal} total).`);
+        return;
+      }
+
+      if (drift !== 0) {
+        logMessage('REST', `🔄 [Count Reconciled]: Ground truth synced from DB: ${dbTotal} (${drift > 0 ? '+' + drift + ' caught up' : drift + ' adjusted'})`);
+      } else {
+        logMessage('REST', `✓ [Count Verified]: Ground truth in sync (${dbTotal} total, ${dbActive} active)`);
+      }
+
+      // On subsequent polls: only process genuinely NEW items that weren't caught via WebSocket
+      const newItems = items.filter(item => {
+        const id = item.incidentNumber || item._id;
+        return id && !knownIncidentIds.has(id);
+      });
+
+      if (newItems.length > 0) {
+        newItems.forEach(latest => {
+          const id = latest.incidentNumber || latest._id;
+          knownIncidentIds.add(id);
+
+          logMessage('REST', `🚨 [RECONCILED INCIDENT]: ${id} - ${latest.eventName || latest.title || latest.incidenttype}`);
+
+          const l4 = document.getElementById('rowLevel4');
+          if (l4) {
+            l4.classList.add('highlighted-floor');
+            setTimeout(() => l4.classList.remove('highlighted-floor'), 4000);
+          }
+
+          handleIncomingWsEvent({
+            type: 'INCIDENT_ALERT',
+            fromReconciler: true,
+            incident: {
+              incidentNumber: id,
+              id: id,
+              title: latest.eventName || latest.title || latest.incidenttype,
+              building: latest.building,
+              floor: latest.floor || 'Level 4',
+              zone: latest.zone || 'Lift Lobby',
+              severity: (latest.priority || 'MEDIUM').toUpperCase(),
+              detectedAt: latest.detectedAt || new Date().toISOString()
+            }
+          });
+        });
+      }
+    }
+
+    function setPollInterval(ms, btn) {
+      document.querySelectorAll('.btn-chip').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      pollIntervalMs = ms;
+      clearInterval(pollTimer);
+      pollTimer = setInterval(executeReconcil, pollIntervalMs);
+      document.getElementById('reconcilStatus').innerText = `Polling (${ms / 1000}s)`;
+    }
+
+    function triggerManualReconcil() {
+      executeReconcil();
+    }
+
+    // 2. Real-Time WebSocket Connection via Kong
+    function toggleConnection() {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        socket.close();
+        return;
+      }
+
+      const kongBase = document.getElementById('kongHost').value.trim();
+      const protocol = document.getElementById('wsProtocol').value;
+      
+      // Replace http:// or https:// with ws:// or wss://
+      let wsUrl = kongBase.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
+      if (protocol === 'socketio') {
+        wsUrl += '/socket.io/?EIO=4&transport=websocket';
+      } else {
+        wsUrl += '/ws';
+      }
+
+      logMessage('WS', `Initiating Handshake via Kong: ${wsUrl}`);
+      document.getElementById('wsStatus').className = 'status-pill status-disconnected';
+      document.getElementById('wsStatus').innerText = 'Connecting...';
+
+      try {
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+          document.getElementById('wsStatus').className = 'status-pill status-active';
+          document.getElementById('wsStatus').innerText = 'Connected (Kong 129.126.201.249:8888)';
+          document.getElementById('btnConnect').innerText = 'Disconnect';
+          document.getElementById('btnConnect').style.background = '#ef4444';
+          logMessage('WS', `Channel Upgraded (101 Switching Protocols). Stream ready.`);
+          document.getElementById('streamFeed').innerHTML = '';
+
+          // Only custom WS sends subscribe immediately; Socket.IO waits for handshake (0 -> 40 -> 42)
+          if (protocol !== 'socketio') {
+            const siteName = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
+            socket.send(JSON.stringify({ action: 'SUBSCRIBE', topic: `site:${siteName}` }));
+            logMessage('WS', `Subscribed to site topic: site:${siteName}`);
+          }
+        };
+
+        socket.onmessage = (event) => {
+          const raw = event.data;
+          // Handle Engine.IO ping
+          if (raw === '2') {
+            socket.send('3'); // pong
+            logMessage('WS', `Received Server Ping (2) -> Sent Pong (3)`);
+            return;
+          }
+          if (raw === '3') {
+            logMessage('WS', `Received Server Pong (3) Heartbeat ACK`);
+            return;
+          }
+          if (raw.startsWith('0')) {
+            logMessage('WS', `Engine.IO Session Initialized: ${raw.slice(1)}`);
+            if (protocol === 'socketio') {
+              // Engine.IO v4 protocol: Send '40' to connect to default Socket.IO namespace
+              socket.send('40');
+              logMessage('WS', `Sent Socket.IO Namespace Connect Handshake (40)`);
+            }
+            return;
+          }
+          if (raw.startsWith('40')) {
+            logMessage('WS', `Socket.IO Namespace Connected: ${raw}`);
+            const siteName = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
+            socket.send(`42["subscribe",{"siteName":"${siteName}"}]`);
+            logMessage('WS', `Subscribed to site topic: site:${siteName}`);
+            return;
+          }
+          if (raw.startsWith('42')) {
+            try {
+              const parsed = JSON.parse(raw.slice(2));
+              const eventName = parsed[0];
+              const eventPayload = parsed[1];
+              if (eventName === 'incident:new') {
+                handleIncomingWsEvent({ type: 'INCIDENT_ALERT', incident: eventPayload });
+              } else if (eventName === 'incident:updated') {
+                handleIncomingWsEvent({ type: 'INCIDENT_UPDATED', ...eventPayload });
+              } else if (eventName === 'subscribed') {
+                logMessage('WS', `Subscription Confirmed: ${JSON.stringify(eventPayload)}`);
+              } else {
+                logMessage('WS', `Socket.IO Event [${eventName}]: ${JSON.stringify(eventPayload)}`);
+              }
+            } catch (e) {
+              logMessage('WS', `Socket.IO Frame: ${raw}`);
+            }
+            return;
+          }
+
+          try {
+            const data = JSON.parse(raw);
+            handleIncomingWsEvent(data);
+          } catch (e) {
+            logMessage('WS', `Raw Frame: ${raw}`);
+          }
+        };
+
+        socket.onclose = () => {
+          document.getElementById('wsStatus').className = 'status-pill status-disconnected';
+          document.getElementById('wsStatus').innerText = 'Disconnected';
+          document.getElementById('btnConnect').innerText = 'Connect Stream';
+          document.getElementById('btnConnect').style.background = '';
+          logMessage('WS', `Connection closed.`);
+        };
+
+        socket.onerror = (e) => {
+          logMessage('WS', `Socket Error occurred.`);
+        };
+      } catch (e) {
+        logMessage('WS', `Connection Exception: ${e.message}`);
+      }
+    }
+
+    // Handle WebSocket Incoming Messages
+    function handleIncomingWsEvent(data) {
+      logMessage('WS', `Pushed Frame: ${data.type || 'EVENT'}`);
+
+      if (data.type === 'WELCOME') {
+        logMessage('WS', `Server Greeting: ${data.message}`);
+      } else if (data.type === 'INCIDENT_ALERT') {
+        const inc = data.incident || {};
+        const incId = inc.incidentNumber || inc.id || inc._id || ('INC-' + Math.floor(1000 + Math.random() * 9000));
+        const incTitle = inc.eventName || inc.title || inc.incidenttype || 'Active Alert';
+        const incZone = [inc.building, inc.floor, inc.zone].filter(Boolean).join(' • ') || inc.zone || 'Level 4 Lift Lobby';
+
+        // Deduplication: prevent duplicate card if already in feed
+        if (document.getElementById(`alert-${incId}`)) {
+          return;
+        }
+
+        const feed = document.getElementById('streamFeed');
+
+        // Remove empty state message if present
+        if (feed.querySelector('div[style*="text-align: center"]')) {
+          feed.innerHTML = '';
+        }
+
+        // Keep feed neat: cap to max 4 visible cards
+        while (feed.children.length >= 4) {
+          feed.removeChild(feed.lastElementChild);
+        }
+
+        const card = document.createElement('div');
+        card.className = 'alert-card';
+        card.id = `alert-${incId}`;
+        card.innerHTML = `
+          <div class="alert-info">
+            <h4><span style="color:var(--accent-crimson);">⚠️</span> ${incTitle}</h4>
+            <p>${incZone} • ID: <code style="color:var(--accent-cyan); font-weight:600;">${incId}</code></p>
+          </div>
+          <button class="btn-ack" onclick="acknowledgeIncident('${incId}', this)">Acknowledge</button>
+        `;
+        feed.prepend(card);
+
+        updateAlertCounter();
+
+        // If event arrived via WebSocket (not reconciler), optimistically increment count immediately
+        if (!data.fromReconciler) {
+          updateIncidentDisplay(incidentState.total + 1, incidentState.active + 1, true);
+          logMessage('WS', `⚡ [Live Socket Push]: +1 Incident -> Optimistic total: ${incidentState.total}`);
+        }
+      } else if (data.type === 'INCIDENT_UPDATED') {
+        const card = document.getElementById(`alert-${data.incidentId}`);
+        if (card) {
+          card.classList.add('acknowledged');
+          const btn = card.querySelector('button');
+          if (btn) {
+            btn.innerText = 'Acknowledged ✓';
+            btn.disabled = true;
+          }
+          updateAlertCounter();
+        }
+        logMessage('WS', `Incident ${data.incidentId} status updated to ${data.status}`);
+      } else if (data.type === 'PONG') {
+        logMessage('WS', `Received PONG heartbeat from upstream`);
+      }
+    }
+
+    function clearAlertsFeed() {
+      const feed = document.getElementById('streamFeed');
+      if (feed) {
+        feed.innerHTML = `
+          <div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; margin-top: 40px;">
+            Alerts cleared. Waiting for new real-time incidents...
+          </div>
+        `;
+      }
+      updateAlertCounter();
+      logMessage('CMD', 'Cleared Live Pushed Alerts feed.');
+    }
+
+    function updateAlertCounter() {
+      const feed = document.getElementById('streamFeed');
+      const cards = feed ? feed.querySelectorAll('.alert-card:not(.acknowledged)') : [];
+      const counter = document.getElementById('alertCounter');
+      if (counter) {
+        counter.innerText = `${cards.length} Active`;
+      }
+    }
+
+    // Send 2-Way Commands back over the open WebSocket
+    function sendWsCommand(type, payload = {}) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        alert('WebSocket is not connected! Click "Connect Stream" first.');
+        return;
+      }
+      const protocol = document.getElementById('wsProtocol').value;
+
+      if (protocol === 'socketio') {
+        if (type === 'PING') {
+          socket.send('2');
+          logMessage('CMD', 'Sent Engine.IO Heartbeat Ping (2)');
+          return;
+        }
+        if (type === 'ACKNOWLEDGE_INCIDENT') {
+          socket.send(`42["acknowledge_incident",${JSON.stringify(payload)}]`);
+          logMessage('CMD', `Sent Socket.IO: acknowledge_incident ${JSON.stringify(payload)}`);
+          return;
+        }
+        if (type === 'SUBSCRIBE') {
+          const siteName = payload.topic ? payload.topic.replace(/^site:/, '') : (document.getElementById('valSite').innerText || 'SOV @ 38ALT');
+          socket.send(`42["subscribe",{"siteName":"${siteName}"}]`);
+          logMessage('CMD', `Sent Socket.IO subscribe: site:${siteName}`);
+
+          // Visual feedback: Highlight Level 4 in Spatial Tree
+          const l4 = document.getElementById('rowLevel4');
+          if (l4) {
+            l4.classList.add('highlighted-floor');
+            l4.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(() => l4.classList.remove('highlighted-floor'), 3500);
+          }
+          return;
+        }
+        if (type === 'TRIGGER_INCIDENT') {
+          socket.send(`42["trigger_incident",${JSON.stringify(payload)}]`);
+          logMessage('CMD', `Sent Socket.IO: trigger_incident ${JSON.stringify(payload)}`);
+
+          // Visual feedback: push alarm into the live feed
+          handleIncomingWsEvent({
+            type: 'INCIDENT_ALERT',
+            incident: {
+              id: 'SIM-' + Math.floor(1000 + Math.random() * 9000),
+              title: payload.title || 'Crowd Gathering in L4 ICC',
+              zone: payload.zone || 'L4 ICC War Room',
+              severity: payload.severity || 'HIGH',
+              time: new Date().toISOString()
+            }
+          });
+          return;
+        }
+        socket.send(`42["${type.toLowerCase()}",${JSON.stringify(payload)}]`);
+        logMessage('CMD', `Sent Socket.IO: ${type.toLowerCase()} ${JSON.stringify(payload)}`);
+        return;
+      }
+
+      // Custom WS protocol
+      const packet = { type, ...payload, timestamp: new Date().toISOString() };
+      socket.send(JSON.stringify(packet));
+      logMessage('CMD', `Sent Command: ${type} ${JSON.stringify(payload)}`);
+
+      if (type === 'SUBSCRIBE') {
+        const l4 = document.getElementById('rowLevel4');
+        if (l4) {
+          l4.classList.add('highlighted-floor');
+          setTimeout(() => l4.classList.remove('highlighted-floor'), 3500);
+        }
+      } else if (type === 'TRIGGER_INCIDENT') {
+        handleIncomingWsEvent({
+          type: 'INCIDENT_ALERT',
+          incident: {
+            id: 'SIM-' + Math.floor(1000 + Math.random() * 9000),
+            title: payload.title || 'Crowd Gathering in L4 ICC',
+            zone: payload.zone || 'L4 ICC War Room',
+            severity: payload.severity || 'HIGH',
+            time: new Date().toISOString()
+          }
+        });
+      }
+    }
+
+    function acknowledgeIncident(id, btn) {
+      sendWsCommand('ACKNOWLEDGE_INCIDENT', { incidentId: id, user: 'vizzio_twin_operator' });
+      btn.innerText = 'Acknowledged ✓';
+      btn.disabled = true;
+      btn.style.borderColor = 'var(--accent-emerald)';
+      btn.style.color = 'var(--accent-emerald)';
+      
+      const card = document.getElementById(`alert-${id}`);
+      if (card) {
+        card.classList.add('acknowledged');
+        setTimeout(() => {
+          card.style.opacity = '0.35';
+          card.style.transition = 'opacity 0.4s ease';
+          updateAlertCounter();
+        }, 600);
+      }
+    }
+
+    // --- Multi-Site Subscriptions via Hierarchy API ---
+    let subscribedSites = new Set(['SOV @ 38ALT']);
+
+    function updateSubscribedCounter() {
+      const counter = document.getElementById('subSitesCounter');
+      if (counter) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          counter.innerText = '(Not Connected)';
+          counter.style.color = 'var(--text-muted)';
+        } else if (subscribedSites.size === 0) {
+          counter.innerText = '(Subscribed: 0 sites)';
+          counter.style.color = 'var(--text-muted)';
+        } else {
+          counter.innerText = `(Subscribed: ${subscribedSites.size} site${subscribedSites.size > 1 ? 's' : ''})`;
+          counter.style.color = 'var(--accent-emerald)';
+        }
+      }
+    }
+
+    async function subscribeAllUserSites() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        alert('WebSocket is not connected! Click "Connect Stream" first.');
+        return;
+      }
+
+      const btn = document.getElementById('btnSubAll');
+      const origText = btn.innerHTML;
+      btn.innerText = 'Fetching sites...';
+      btn.disabled = true;
+
+      const kongBase = document.getElementById('kongHost').value.trim();
+      const user = document.getElementById('authUser').value.trim();
+      const pass = document.getElementById('authPass').value.trim();
+      const base64Auth = btoa(`${user}:${pass}`);
+
+      try {
+        logMessage('CMD', `Fetching user sites via GET ${kongBase}/api/visualization/hierarchy ...`);
+        const response = await fetch(`${kongBase}/api/visualization/hierarchy?limit=50`, {
+          headers: { 'Authorization': `Basic ${base64Auth}` }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Hierarchy API returned ${response.status} ${response.statusText}`);
+        }
+
+        const resJson = await response.json();
+        let siteList = [];
+
+        if (resJson.data && Array.isArray(resJson.data.items)) {
+          siteList = resJson.data.items.map(item => item.name || item.code).filter(Boolean);
+        } else if (resJson.data && Array.isArray(resJson.data)) {
+          siteList = resJson.data.map(item => item.name || item.code).filter(Boolean);
+        }
+
+        // Always include currently selected site
+        const currentSite = document.getElementById('valSite').innerText || 'SOV @ 38ALT';
+        if (!siteList.includes(currentSite)) {
+          siteList.unshift(currentSite);
+        }
+
+        logMessage('CMD', `Found ${siteList.length} assigned sites. Emitting WebSocket subscriptions...`);
+
+        const protocol = document.getElementById('wsProtocol').value;
+
+        if (protocol === 'socketio') {
+          // Send batch subscription event
+          socket.send(`42["subscribe_sites",{"sites":${JSON.stringify(siteList)}}]`);
+          // Also send individual subscription for initial sites
+          siteList.slice(0, 20).forEach(s => {
+            socket.send(`42["subscribe",{"siteName":"${s}"}]`);
+          });
+        } else {
+          socket.send(JSON.stringify({ action: 'SUBSCRIBE_ALL', sites: siteList }));
+        }
+
+        siteList.forEach(s => subscribedSites.add(s));
+        updateSubscribedCounter();
+
+        logMessage('WS', `Successfully subscribed to ${siteList.length} sites across user portfolio!`);
+        btn.innerHTML = `✅ Subscribed (${siteList.length} sites)`;
+        setTimeout(() => {
+          btn.innerHTML = origText;
+          btn.disabled = false;
+        }, 2500);
+
+      } catch (err) {
+        logMessage('WS', `Subscription Error: ${err.message}`);
+        btn.innerHTML = origText;
+        btn.disabled = false;
+        alert(`Failed to fetch sites from Hierarchy API: ${err.message}`);
+      }
+    }
+
+    function unsubscribeAllSites() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        alert('WebSocket is not connected! Click "Connect Stream" first.');
+        return;
+      }
+
+      const protocol = document.getElementById('wsProtocol').value;
+      const count = subscribedSites.size;
+
+      if (protocol === 'socketio') {
+        socket.send(`42["unsubscribe_all",{}]`);
+        subscribedSites.forEach(s => {
+          socket.send(`42["unsubscribe",{"siteName":"${s}"}]`);
+        });
+      } else {
+        socket.send(JSON.stringify({ action: 'UNSUBSCRIBE_ALL' }));
+      }
+
+      subscribedSites.clear();
+      updateSubscribedCounter();
+
+      logMessage('CMD', `Unsubscribed from all ${count} sites.`);
+      logMessage('WS', `All site topic streams paused (0 active subscriptions).`);
+    }
+
+    // Auto-start polling on page load
+    window.addEventListener('load', () => {
+      executeReconcil();
+      pollTimer = setInterval(executeReconcil, pollIntervalMs);
+    });
+  </script>
+</body>
+</html>
