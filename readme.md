@@ -460,8 +460,9 @@ The Common Data Environment (CDE) unifies perimeter ingress, dual-path real-time
                                    └────────────┬────────────┘
                                                 │
                                                 ▼ (Port 8088 / HTTPS 8443)
-                                 [ OUTBOUND CONSUMPTION & OBSERVABILITY ]
+                                 [ OUTBOUND CONSUMPTION & COGNITIVE INTELLIGENCE ]
                                  ├── Omnichannel AI Assistant (OpenClaw / ElevenLabs / Telegram / WhatsApp)
+                                 ├── Cognitive AI & Predictive Analytics Engine (Early Anomaly, RCA & Action)
                                  ├── Virtual Assistant (VA) & Control Center
                                  ├── Grafana Dashboards (:3000) & Prometheus Metrics (:9090)
                                  ├── Kibana Log Analytics (:5601) & Elasticsearch (:9200)
@@ -487,6 +488,8 @@ The Common Data Environment (CDE) unifies perimeter ingress, dual-path real-time
 | **Infra & API Observability** | **Prometheus + Grafana** | Host metrics (Node Exporter), container metrics (cAdvisor), Kong latency & RPS | Real-time TSDB (15s scrape interval) |
 | **Centralized Logging** | **ELK Stack (Elasticsearch, Logstash, Kibana)** | Ingest & index Kong API access logs, iMOPS incident logs, Docker container logs | Near real-time search ($< 1\text{ s}$) |
 | **Omnichannel AI Assistant** | **OpenClaw, ElevenLabs, Telegram, WhatsApp** | Natural language queries, voice conversation, live incident alerts across CDE data | $1\text{–}3\text{ s}$ conversational response |
+| **Predictive Analytics Engine** | **FastAPI, scikit-learn, ONNX, Prophet, Polars** | Continuous anomaly scoring, multi-horizon forecasting, equipment RUL degradation | $< 25\text{ ms}$ inference / micro-batch |
+| **Cognitive AI & Decision Engine** | **LangGraph, Qdrant Vector DB, NetworkX** | Multi-modal context fusion, causal RCA fault-tree reasoning, prescriptive Next-Best-Action | $1\text{–}2\text{ s}$ diagnostic inference |
 
 ---
 
@@ -678,4 +681,88 @@ When a user submits a natural-language prompt (e.g., *"Summarize all high-severi
 5. **Synthesis & Channel Response:** The LLM synthesizes the collected records into a concise response:
    - **Text Channels (Telegram / WhatsApp / OpenClaw):** Formatted Markdown summary with key indicators and incident IDs.
    - **Voice Channel (ElevenLabs):** Rendered into natural conversational speech and streamed back to the caller over WebSocket.
+---
 
+# Cognitive AI & Predictive Analytics Engine
+
+The CDE incorporates an advanced **Cognitive AI and Predictive Analytics Engine** that shifts the platform from reactive observation to proactive, autonomous operational intelligence. While traditional monitoring alerts on static threshold breaches, this intelligence layer predicts failures before they happen, diagnoses complex root causes across correlated telemetry, and prescribes concrete mitigation actions.
+
+```
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+                         COGNITIVE AI & PREDICTIVE INTELLIGENCE ARCHITECTURE
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+    [ INCOMING TELEMETRY & LAKE DATA ]
+    ┌──────────────────────┐          ┌──────────────────────┐          ┌──────────────────────┐
+    │  Redis Live Stream   │          │  Curated Parquet     │          │  Elasticsearch Logs  │
+    │  (stream:telemetry)  │          │  (s3://lake-curated) │          │  (cde-*-logs-*)      │
+    └──────────┬───────────┘          └──────────┬───────────┘          └──────────┬───────────┘
+               │                                 │                                 │
+               ▼                                 ▼                                 ▼
+ ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+ │                           PREDICTIVE ANALYTICS ENGINE (:8092)                               │
+ │                                                                                             │
+ │  ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐  │
+ │  │ Early Anomaly Detector  │    │ Time-Series Forecaster  │    │ Predictive Maintenance  │  │
+ │  │ (Isolation Forest /     │    │ (Prophet / PatchTST /   │    │ (RUL & Equipment Health │  │
+ │  │  Autoencoder Residuals) │    │  LightGBM Regressors)   │    │  Degradation Curves)    │  │
+ │  └────────────┬────────────┘    └────────────┬────────────┘    └────────────┬────────────┘  │
+ └───────────────┼──────────────────────────────┼──────────────────────────────┼───────────────┘
+                 │                              │                              │
+                 ▼ (Predictions & Anomalies)    ▼                              ▼
+ ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+ │                             COGNITIVE AI REASONER (:8094)                                   │
+ │                                                                                             │
+ │  ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐  │
+ │  │ Multi-Modal Context     │    │ Causal RCA Reasoner     │    │ Prescriptive Action     │  │
+ │  │ Synthesizer (Sensor +   │───►│ (Fault Tree & Knowledge │───►│ Engine (Next-Best-      │  │
+ │  │  Video Metadata + Logs) │    │  Graph / Ontology)      │    │  Action & SOP Dispatch) │  │
+ │  └─────────────────────────┘    └────────────▲────────────┘    └────────────┬────────────┘  │
+ └──────────────────────────────────────────────┼──────────────────────────────┼───────────────┘
+                                                │                              │
+                               ┌────────────────┴───────────────┐              │
+                               ▼                                │              │
+                ┌─────────────────────────────┐                 │              │
+                │ Vector Knowledge Store      │                 │              │
+                │ (Qdrant / PGVector :6333)   │                 │              │
+                │ SOPs, Equipment Schematics  │                 │              │
+                └─────────────────────────────┘                 │              │
+                                                                │              │
+                 ┌──────────────────────────────────────────────┴──────────────┘
+                 ▼ (Proactive Early Alerts & Prescriptions)
+   ┌─────────────────────────────┐               ┌─────────────────────────────┐
+   │ REDIS FAST-PATH BROKER      │               │ KONG EGRESS API GATEWAY     │
+   │ • stream:early_warnings     │               │ • /api/v1/predict/*         │
+   │ • stream:prescriptions      │               │ • /api/v1/cognitive/*       │
+   └─────────────┬───────────────┘               └──────────────┬──────────────┘
+                 │                                              │
+                 ▼                                              ▼
+   ┌─────────────────────────────┐               ┌─────────────────────────────┐
+   │ Omnichannel AI Assistant    │               │ Operations Control Room &   │
+   │ (Push to Telegram/WhatsApp/ │               │ Grafana Predictive Alerts   │
+   │  ElevenLabs Voice Brief)    │               │ Incident Prevention Board   │
+   └─────────────────────────────┘               └─────────────────────────────┘
+```
+
+### Core Subsystems & Capabilities
+
+#### 1. Predictive Analytics Subsystem
+- **Early-Warning Anomaly Detection**: Uses unsupervised Isolation Forests and rolling dynamic Z-scores over real-time telemetry windows in Redis. Identifies subtle multi-variate drift (e.g. rising bearing vibration paired with minor motor temperature increases) up to 30–60 minutes before physical thresholds are breached.
+- **Multi-Horizon Time-Series Forecasting**: Deploys lightweight forecasting models (Prophet / PatchTST / LightGBM) trained on historical Curated Parquet in MinIO. Predicts station passenger flow, choke point crowd density, and data ingestion throughput at 15-minute, 1-hour, and 24-hour horizons.
+- **Predictive Maintenance (PdM) & Remaining Useful Life (RUL)**: Computes degradation health indices for monitored machinery, estimating wear rates and forecasting required service dates before catastrophic failures occur.
+- **Incident Escalation Risk Scoring**: Evaluates active minor incidents against historical Gold lake patterns to predict the probability of compound escalation (e.g., probability of a minor gate delay escalating into platform crowding).
+
+#### 2. Cognitive AI Subsystem
+- **Multi-Modal Context Synthesis**: Ingests and correlates heterogeneous data points—video analytics bounding boxes/crowd counts from iMOPS, acoustic/vibration sensor time-series, historical work orders, and ELK error logs—into a cohesive situational snapshot.
+- **Causal Root Cause Analysis (RCA)**: Traverses facility equipment dependency graphs and fault trees (modeled in NetworkX / ontology graph). When multiple alerts trigger simultaneously, the engine distinguishes root causes from cascading downstream symptoms.
+- **Prescriptive Next-Best-Action (NBA)**: Queries semantic vector embeddings of digital Standard Operating Procedures (SOPs) stored in Qdrant. Recommends prioritized, context-aware operational interventions (e.g., dispatching maintenance with part SKU #8812, opening overflow Gate 4, adjusting HVAC chiller loop).
+- **Cognitive Co-Pilot Integration**: Serves as the cognitive reasoning backbone for the Phase 9 Omnichannel Assistant, enabling conversational operators on Telegram, WhatsApp, OpenClaw, or ElevenLabs voice to ask diagnostic questions (*"Why is line 3 throttling?"*) and receive reasoned, step-by-step guidance.
+
+### Event Integration & Data Sinks
+
+| Pipeline Event | Source | Destination | Action Taken |
+| :--- | :--- | :--- | :--- |
+| `stream:early_warnings` | Predictive Engine | Redis Streams | Dispatches pre-alarm warning to control room and AI Assistant |
+| `stream:prescriptions` | Cognitive Engine | Redis Streams & n8n | Triggers automated mitigation workflows (SOP dispatch, work order draft) |
+| Gold Forecast Lake | Predictive Engine | MinIO `lake-publish` & PostgreSQL | Populates predictive trend graphs and capacity planning views in Grafana |
+| RCA Explanations | Cognitive Engine | Kong Gateway `/api/v1/cognitive/root-cause` | Consumed on-demand by Omnichannel Assistant & Operators |

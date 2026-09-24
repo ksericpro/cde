@@ -30,7 +30,9 @@ This document outlines the step-by-step implementation plan for building, testin
      │
      ├─► Phase 9: Omnichannel AI Assistant Query Layer (OpenClaw, ElevenLabs, Telegram, WhatsApp)
      │
-     └─► Phase 10: End-to-End Integration, Security Hardening & Acceptance Testing
+     ├─► Phase 10: Cognitive AI & Predictive Intelligence Engine (Anomaly, Forecasting, RCA & Next-Best-Action)
+     │
+     └─► Phase 11: End-to-End Integration, Security Hardening & Acceptance Testing
 ```
 
 ---
@@ -822,10 +824,269 @@ Enable conversational and autonomous natural language querying of all data acros
 
 ---
 
-## Phase 10: End-to-End Integration, Security Hardening & Acceptance Testing
+## Phase 10: Cognitive AI & Predictive Intelligence Engine (ML Forecasting, Anomaly Detection, RCA & Next-Best-Action)
 
 ### Objective
-Validate end-to-end telemetry flow from edge ingress through to lake storage, transformation, serving, real-time metrics monitoring, and centralized logging, while enforcing production firewall and credential security policies.
+Transform CDE from a reactive operational repository into an autonomous, proactive intelligence brain. This phase deploys:
+1. **Predictive Analytics Engine (`cde-predictive-engine`)**: Runs continuous unsupervised anomaly detection on in-flight telemetry, multi-horizon time-series forecasting, equipment degradation/RUL modeling, and incident escalation risk scoring.
+2. **Cognitive AI Engine (`cde-cognitive-engine`)**: Synthesizes multi-modal telemetry with operational knowledge graphs and standard operating procedures (SOPs) to execute automated Root Cause Analysis (RCA) and generate prescriptive Next-Best-Action (NBA) recommendations.
+
+### Architecture
+
+```
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+                         COGNITIVE AI & PREDICTIVE INTELLIGENCE ARCHITECTURE
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+    [ INCOMING TELEMETRY & LAKE DATA ]
+    ┌──────────────────────┐          ┌──────────────────────┐          ┌──────────────────────┐
+    │  Redis Live Stream   │          │  Curated Parquet     │          │  Elasticsearch Logs  │
+    │  (stream:telemetry)  │          │  (s3://lake-curated) │          │  (cde-*-logs-*)      │
+    └──────────┬───────────┘          └──────────┬───────────┘          └──────────┬───────────┘
+               │                                 │                                 │
+               ▼                                 ▼                                 ▼
+ ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+ │                           PREDICTIVE ANALYTICS ENGINE (:8092)                               │
+ │                                                                                             │
+ │  ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐  │
+ │  │ Early Anomaly Detector  │    │ Time-Series Forecaster  │    │ Predictive Maintenance  │  │
+ │  │ (Isolation Forest /     │    │ (Prophet / PatchTST /   │    │ (RUL & Equipment Health │  │
+ │  │  Autoencoder Residuals) │    │  LightGBM Regressors)   │    │  Degradation Curves)    │  │
+ │  └────────────┬────────────┘    └────────────┬────────────┘    └────────────┬────────────┘  │
+ └───────────────┼──────────────────────────────┼──────────────────────────────┼───────────────┘
+                 │                              │                              │
+                 ▼ (Predictions & Anomalies)    ▼                              ▼
+ ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+ │                             COGNITIVE AI REASONER (:8094)                                   │
+ │                                                                                             │
+ │  ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐  │
+ │  │ Multi-Modal Context     │    │ Causal RCA Reasoner     │    │ Prescriptive Action     │  │
+ │  │ Synthesizer (Sensor +   │───►│ (Fault Tree & Knowledge │───►│ Engine (Next-Best-      │  │
+ │  │  Video Metadata + Logs) │    │  Graph / Ontology)      │    │  Action & SOP Dispatch) │  │
+ │  └─────────────────────────┘    └────────────▲────────────┘    └────────────┬────────────┘  │
+ └──────────────────────────────────────────────┼──────────────────────────────┼───────────────┘
+                                                │                              │
+                               ┌────────────────┴───────────────┐              │
+                               ▼                                │              │
+                ┌─────────────────────────────┐                 │              │
+                │ Vector Knowledge Store      │                 │              │
+                │ (Qdrant / PGVector :6333)   │                 │              │
+                │ SOPs, Equipment Schematics  │                 │              │
+                └─────────────────────────────┘                 │              │
+                                                                │              │
+                 ┌──────────────────────────────────────────────┴──────────────┘
+                 ▼ (Proactive Early Alerts & Prescriptions)
+   ┌─────────────────────────────┐               ┌─────────────────────────────┐
+   │ REDIS FAST-PATH BROKER      │               │ KONG EGRESS API GATEWAY     │
+   │ • stream:early_warnings     │               │ • /api/v1/predict/*         │
+   │ • stream:prescriptions      │               │ • /api/v1/cognitive/*       │
+   └─────────────┬───────────────┘               └──────────────┬──────────────┘
+                 │                                              │
+                 ▼                                              ▼
+   ┌─────────────────────────────┐               ┌─────────────────────────────┐
+   │ Omnichannel AI Assistant    │               │ Operations Control Room &   │
+   │ (Push to Telegram/WhatsApp/ │               │ Grafana Predictive Alerts   │
+   │  ElevenLabs Voice Brief)    │               │ Incident Prevention Board   │
+   └─────────────────────────────┘               └─────────────────────────────┘
+```
+
+### Components
+
+#### 1. Predictive Analytics Engine (`cde-predictive-engine`)
+- **Technology**: Python 3.12, FastAPI, scikit-learn, PyTorch/ONNX Runtime, Prophet, Polars.
+- **Port**: `8092`.
+- **Core Functions**:
+  - **Unsupervised Anomaly Detection**: Real-time sliding window scoring using Isolation Forests and dynamic moving Z-score over incoming sensor signals. Detects creeping degradation long before hard threshold limits trigger.
+  - **Time-Series Forecasting**: Generates 15-minute, 1-hour, and 24-hour predictive horizons for facility crowd density, power usage, and ingress API throughput.
+  - **Predictive Maintenance (PdM)**: Calculates asset Remaining Useful Life (RUL) and wear indices based on historical vibration, temperature, and operating cycles stored in Curated Parquet.
+  - **Escalation Probability Scoring**: Predicts the likelihood of an active Level-1 incident escalating to Level-3 based on environmental correlations and historical incident trajectories.
+
+#### 2. Cognitive AI Engine (`cde-cognitive-engine`)
+- **Technology**: Python 3.12, FastAPI, LangGraph / LlamaIndex, NetworkX (ontology graph), Qdrant vector database.
+- **Port**: `8094`.
+- **Core Functions**:
+  - **Multi-Modal Context Synthesis**: Correlates video analytics event metadata, physical sensor time-series, historical maintenance tickets, and infrastructure logs into a unified situational representation.
+  - **Causal Root Cause Analysis (RCA)**: Evaluates observed symptoms against facility topological dependency trees and fault graphs to identify the true root cause rather than treating downstream symptoms.
+  - **Prescriptive Next-Best-Action (NBA)**: Maps identified root causes to digital Standard Operating Procedures (SOPs), generating prioritized, actionable mitigation steps (e.g., dispatch technician with specific replacement part, re-route pedestrian gates, activate backup chiller).
+  - **Assistant Integration**: Exposes tools directly to the Phase 9 Omnichannel Assistant so operators can ask: *"What is the projected crowd surge at 38ALT by 19:00 and what preventive steps should be taken?"*
+
+#### 3. Operational Vector Store (`cde-vector-db`)
+- **Technology**: Qdrant (or PGVector extension in PostgreSQL).
+- **Port**: `6333`.
+- **Contents**: Chunked and embedded facility operational manuals, equipment manufacturer schematics, safety protocols, and historical incident post-mortem reports.
+
+---
+
+### Setup Instructions
+
+1. Directory layout:
+   ```
+   cognitive-ai/
+   ├── docker-compose.yml
+   ├── .env.example
+   ├── models/                  # Persisted ONNX and serialized model artifacts
+   ├── config/
+   │   ├── ontology.json        # Facility topology & dependency graph
+   │   └── alert_rules.json     # Dynamic confidence thresholds
+   └── src/
+       ├── predictive/
+       │   ├── main.py
+       │   ├── anomaly.py
+       │   ├── forecaster.py
+       │   └── pdm_engine.py
+       └── cognitive/
+           ├── main.py
+           ├── rca_graph.py
+           ├── context_fusion.py
+           └── sop_retriever.py
+   ```
+
+2. Docker Compose service definition (`cognitive-ai/docker-compose.yml`):
+   ```yaml
+   services:
+     cde-vector-db:
+       image: qdrant/qdrant:v1.12.1
+       container_name: cde-vector-db
+       restart: unless-stopped
+       ports:
+         - "6333:6333"
+       volumes:
+         - ./qdrant_storage:/qdrant/storage
+       networks:
+         - cde-network
+
+     cde-predictive-engine:
+       image: python:3.12-slim
+       container_name: cde-predictive-engine
+       restart: unless-stopped
+       working_dir: /app
+       volumes:
+         - ./src/predictive:/app
+         - ./models:/app/models
+         - ./config:/app/config
+       environment:
+         - PORT=8092
+         - REDIS_URL=redis://imops-redis:6379/0
+         - MINIO_ENDPOINT=minio:9000
+         - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+         - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+         - POSTGRES_URL=postgresql://cde_admin:${POSTGRES_PASSWORD}@postgres:5432/cde_published
+       ports:
+         - "8092:8092"
+       networks:
+         - cde-network
+       depends_on:
+         - cde-vector-db
+
+     cde-cognitive-engine:
+       image: python:3.12-slim
+       container_name: cde-cognitive-engine
+       restart: unless-stopped
+       working_dir: /app
+       volumes:
+         - ./src/cognitive:/app
+         - ./config:/app/config
+       environment:
+         - PORT=8094
+         - PREDICTIVE_URL=http://cde-predictive-engine:8092
+         - VECTOR_DB_URL=http://cde-vector-db:6333
+         - REDIS_URL=redis://imops-redis:6379/0
+         - KONG_API_URL=http://kong-gateway:8088
+         - LLM_API_KEY=${LLM_API_KEY}
+       ports:
+         - "8094:8094"
+       networks:
+         - cde-network
+       depends_on:
+         - cde-predictive-engine
+         - cde-vector-db
+
+   networks:
+     cde-network:
+       external: true
+   ```
+
+3. Expose Predictive & Cognitive APIs through Kong Gateway:
+   ```bash
+   # Register Predictive Engine Service & Routes
+   curl.exe -i -X POST http://localhost:8001/services \
+     -d "name=cde-predictive-service" \
+     -d "url=http://cde-predictive-engine:8092"
+
+   curl.exe -i -X POST http://localhost:8001/services/cde-predictive-service/routes \
+     -d "name=predictive-routes" \
+     -d "paths[]=/api/v1/predict" \
+     -d "strip_path=false"
+
+   # Register Cognitive Engine Service & Routes
+   curl.exe -i -X POST http://localhost:8001/services \
+     -d "name=cde-cognitive-service" \
+     -d "url=http://cde-cognitive-engine:8094"
+
+   curl.exe -i -X POST http://localhost:8001/services/cde-cognitive-service/routes \
+     -d "name=cognitive-routes" \
+     -d "paths[]=/api/v1/cognitive" \
+     -d "strip_path=false"
+   ```
+
+---
+
+### Verification & Testing
+
+1. **Verify Real-Time Anomaly Scoring**:
+   ```bash
+   curl.exe -i -X POST http://localhost:8092/api/v1/predict/anomaly-score \
+     -H "Content-Type: application/json" \
+     -d '{
+       "sensor_id": "SN-HVAC-38ALT-02",
+       "window_readings": [72.1, 72.4, 73.0, 75.8, 81.2, 88.6],
+       "metric": "temperature_celsius"
+     }'
+   ```
+   *Expected:* HTTP `200 OK` returning anomaly score $> 0.85$, classification `"ANOMALOUS_DRIFT"`, and early-warning event emitted to `stream:early_warnings`.
+
+2. **Verify Multi-Horizon Time-Series Forecast**:
+   ```bash
+   curl.exe -i -X POST http://localhost:8092/api/v1/predict/forecast \
+     -H "Content-Type: application/json" \
+     -d '{
+       "target": "crowd_density",
+       "facility": "38ALT",
+       "horizon_minutes": 60
+     }'
+   ```
+   *Expected:* HTTP `200 OK` returning 15m, 30m, and 60m projected values, confidence bands, and surge probability.
+
+3. **Verify Root Cause Analysis (RCA) Reasoning**:
+   ```bash
+   curl.exe -i -X POST http://localhost:8094/api/v1/cognitive/root-cause \
+     -H "Content-Type: application/json" \
+     -d '{
+       "incident_id": "INC-2026-901",
+       "symptoms": ["ELEVATED_TEMP", "CONVEYOR_SPEED_DROP", "GATE_B_CONGESTION"],
+       "facility": "38ALT"
+     }'
+   ```
+   *Expected:* HTTP `200 OK` returning primary causal hypothesis (e.g., *"Chiller loop 2 pressure failure causing secondary thermal throttling and gate dispatch blockage"*), causal confidence score, and affected downstream assets.
+
+4. **Verify Prescriptive Next-Best-Action (NBA)**:
+   ```bash
+   curl.exe -i -X POST http://localhost:8094/api/v1/cognitive/recommend-action \
+     -H "Content-Type: application/json" \
+     -d '{
+       "root_cause_code": "CHILLER_VALVE_FAIL",
+       "facility": "38ALT",
+       "severity": "CRITICAL"
+     }'
+   ```
+   *Expected:* HTTP `200 OK` returning structured SOP recommendation checklist, technician dispatch parameters, and emergency reroute configuration.
+
+---
+
+## Phase 11: End-to-End Integration, Security Hardening & Acceptance Testing
+
+### Objective
+Validate end-to-end telemetry flow from edge ingress through to lake storage, transformation, serving, real-time metrics monitoring, centralized logging, predictive anomaly detection, and cognitive prescriptive actions, while enforcing production firewall and credential security policies.
 
 ### Deliverables & Checklist
 - [ ] **End-to-End Ingestion Validation:** Pushing a mock sensor batch triggers both the urgent alert (Redis) and persists to MinIO raw.
@@ -840,11 +1101,15 @@ Validate end-to-end telemetry flow from edge ingress through to lake storage, tr
 - [ ] **Omnichannel AI Assistant Validation:**
   - AI Assistant successfully queries Redis Streams urgent alerts, iMOPS incidents, and MinIO Gold Parquet lake via tool calling.
   - Telegram, WhatsApp, ElevenLabs voice, and OpenClaw endpoints tested and verified.
+- [ ] **Cognitive & Predictive AI Validation:**
+  - Predictive model flags sensor anomalies and crowd surges 30 minutes before hard threshold violations.
+  - Cognitive engine successfully performs causal RCA and generates SOP mitigation recommendations.
+  - Early-warning events published to `stream:early_warnings` trigger proactive operator notifications.
 - [ ] **Security Hardening:**
   - `key-auth` or basic authentication enabled on all public routes.
   - Rate limiting enforced (e.g., 60-100 requests/minute per consumer).
   - Kong Admin API (`:8001`) and Kong Manager (`:8002`) protected behind host firewall (UFW) or basic auth.
-  - Elasticsearch and Grafana secured with non-default administrative credentials.
+  - Elasticsearch, Qdrant, and Grafana secured with non-default administrative credentials.
   - CORS headers restricted to permitted dashboard origins.
 
 ---
@@ -862,4 +1127,5 @@ Validate end-to-end telemetry flow from edge ingress through to lake storage, tr
 | **Phase 7** | Infrastructure Monitoring (Grafana + Prometheus) | **Completed** | Day 6 | Full stack configured & provisioned in `grafana/` |
 | **Phase 8** | Centralized Logging (ELK Stack - Kong & iMOPS) | **Configured** | Day 7 | Docker compose & logstash pipelines defined in `elk/` |
 | **Phase 9** | Omnichannel AI Assistant (OpenClaw, ElevenLabs, Telegram, WhatsApp) | **Ready to Build** | Day 8 | Architecture, schemas & channel adapters defined |
-| **Phase 10** | Hardening & E2E Acceptance Testing | **Pending** | Day 9 | Final acceptance, security & audit |
+| **Phase 10** | Cognitive AI & Predictive Engine (ML Forecasting, Anomaly, RCA) | **Ready to Build** | Day 9 | Architecture, schemas & pipelines defined |
+| **Phase 11** | Hardening & E2E Acceptance Testing | **Pending** | Day 10 | Final acceptance, security & audit |
