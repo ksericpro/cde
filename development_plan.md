@@ -26,9 +26,11 @@ This document outlines the step-by-step implementation plan for building, testin
      │
      ├─► Phase 7: Infrastructure Monitoring & Telemetry (Prometheus & Grafana)
      │
-     ├─► Phase 8: Centralized Log Aggregation & Analysis (ELK Stack)
+     ├─► Phase 8: Centralized Log Aggregation & Analysis (ELK Stack - Kong & iMOPS Logs)
      │
-     └─► Phase 9: End-to-End Integration, Security Hardening & Acceptance Testing
+     ├─► Phase 9: Omnichannel AI Assistant Query Layer (OpenClaw, ElevenLabs, Telegram, WhatsApp)
+     │
+     └─► Phase 10: End-to-End Integration, Security Hardening & Acceptance Testing
 ```
 
 ---
@@ -627,6 +629,10 @@ Unify and centralize log streams across all CDE components (Kong Gateway access/
        mutate {
          add_field => { "[@metadata][target_index]" => "cde-kong-logs" }
        }
+     } else if [docker][container][name] =~ "imops" {
+       mutate {
+         add_field => { "[@metadata][target_index]" => "cde-imops-logs" }
+       }
      } else if [docker][container][name] =~ "n8n" {
        mutate {
          add_field => { "[@metadata][target_index]" => "cde-n8n-logs" }
@@ -674,7 +680,149 @@ Unify and centralize log streams across all CDE components (Kong Gateway access/
 
 ---
 
-## Phase 9: End-to-End Integration, Security Hardening & Acceptance Testing
+## Phase 9: Omnichannel AI Assistant Query Layer (OpenClaw, ElevenLabs, Telegram, WhatsApp)
+
+### Objective
+Enable conversational and autonomous natural language querying of all data across CDE tiers (urgent alarms in Redis Streams, iMOPS incident monitor records, operational metrics in PostgreSQL/Redis, historical analytical data in MinIO Gold Parquet via DuckDB, and system/gateway logs in Elasticsearch) through **OpenClaw**, **ElevenLabs (Voice)**, **Telegram**, and **WhatsApp**.
+
+### Architecture
+```
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+                                    OMNICHANNEL AI ASSISTANT ARCHITECTURE
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+   [ INTERACTION CHANNELS ]
+   ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+   │     OPENCLAW      │   │    ELEVENLABS     │   │     TELEGRAM      │   │     WHATSAPP      │
+   │  Autonomous Agent │   │  Conversational   │   │  Operations Bot   │   │  Business Cloud   │
+   │  & Tool Runtime   │   │  Ultra-Low Latency│   │  (Instant Alerts  │   │  (Field Messaging │
+   │  (API/Code Exec)  │   │  Voice Assistant  │   │  & Interactive)   │   │  & Incident Data) │
+   └─────────┬─────────┘   └─────────┬─────────┘   └─────────┬─────────┘   └─────────┬─────────┘
+             │                       │                       │                       │
+             └───────────────────────┼───────────────────────┴───────────────────────┘
+                                     │ (User Prompts / Voice Audio)
+                                     ▼
+                      ┌─────────────────────────────┐
+                      │     cde-ai-assistant        │
+                      │  (NL2SQL, Tool Dispatcher,  │
+                      │   RAG Context Assembly)     │
+                      └──────────────┬──────────────┘
+                                     │
+                                     ▼ (Secure Authenticated Calls)
+                      ┌─────────────────────────────┐
+                      │      KONG API GATEWAY       │
+                      │  (Auth, ACL, Rate Limiting) │
+                      └──────────────┬──────────────┘
+                                     │
+           ┌─────────────────────────┼─────────────────────────┐
+           ▼                         ▼                         ▼
+  ┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
+  │ OPERATIONAL REST │      │  ANALYTICAL SQL  │      │ LOGS & AUDITING  │
+  │ (PostgREST /     │      │ (DuckDB Engine   │      │ (Elasticsearch   │
+  │  FastAPI / Redis)│      │  over Gold Lake) │      │  Search Cluster) │
+  ├──────────────────┤      ├──────────────────┤      ├──────────────────┤
+  │ • Live Incidents │      │ • Trend Analysis │      │ • API Error Logs │
+  │ • Active Sensors │      │ • Daily Rollups  │      │ • Ingestion Lag  │
+  │ • Urgent Alarms  │      │ • Parquet Query  │      │ • Security Audit │
+  └──────────────────┘      └──────────────────┘      └──────────────────┘
+```
+
+### Components
+- **`cde-ai-assistant`**: Python microservice (FastAPI + LangChain/LlamaIndex or OpenAI/Anthropic SDK) running on internal port `8090`, containerized on `cde-network`.
+- **Channel Adapters**:
+  - **OpenClaw Agent Interface**: Tool-calling schema provider conforming to OpenClaw runtime protocols for executing autonomous workflows.
+  - **ElevenLabs Conversational Voice Bridge**: Full-duplex WebSocket bridge translating speech audio to text and synthesizing AI responses back with ultra-low latency conversational voice models.
+  - **Telegram Bot Webhook**: Handles commands (`/incidents`, `/status`, `/kpi`, `/search`) and free-form queries; receives push dispatches from `stream:urgent`.
+  - **WhatsApp Business Cloud API Webhook**: Parses incoming user messages, authenticates authorized sender numbers, and responds with interactive cards and data summaries.
+- **Unified Tool Calling Definitions (JSON Schemas)**:
+  1. `get_urgent_alerts(limit, severity)`: Reads active alarms from Redis Streams `stream:urgent`.
+  2. `get_facility_incidents(facility, status, hours)`: Queries iMOPS incident records from PostgreSQL / FastAPI serving layer.
+  3. `get_infra_telemetry(metric, duration)`: Queries Prometheus HTTP API for CPU/RAM and Kong RPS/latency.
+  4. `query_lakehouse(sql_query)`: Executes DuckDB SQL against MinIO Gold Parquet lake (`lake-publish`).
+  5. `search_logs(query, service, hours)`: Searches Elasticsearch `cde-*-logs-*` indices for error codes, request IDs, and audit traces.
+
+### Setup Instructions
+1. Directory layout:
+   ```
+   ai-assistant/
+   ├── docker-compose.yml
+   ├── .env.example
+   ├── config/
+   │   └── tools.json
+   └── src/
+       ├── main.py
+       ├── orchestrator.py
+       ├── tools/
+       └── channels/
+           ├── openclaw.py
+           ├── elevenlabs.py
+           ├── telegram.py
+           └── whatsapp.py
+   ```
+2. Docker Compose service definition (`ai-assistant/docker-compose.yml`):
+   ```yaml
+   services:
+     ai-assistant:
+       image: python:3.12-slim
+       container_name: cde-ai-assistant
+       restart: unless-stopped
+       working_dir: /app
+       volumes:
+         - ./src:/app
+         - ./config:/app/config
+       environment:
+         - PORT=8090
+         - KONG_API_URL=http://kong-gateway:8088
+         - REDIS_URL=redis://imops-redis:6379/0
+         - ELASTICSEARCH_URL=http://cde-elasticsearch:9200
+         - PROMETHEUS_URL=http://cde-prometheus:9090
+         - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+         - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+         - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+         - ELEVENLABS_AGENT_ID=${ELEVENLABS_AGENT_ID}
+         - LLM_API_KEY=${LLM_API_KEY}
+       ports:
+         - "8090:8090"
+       networks:
+         - cde-network
+       depends_on:
+         - kong-gateway
+
+   networks:
+     cde-network:
+       external: true
+   ```
+3. Register Kong Route for Assistant Webhooks:
+   ```bash
+   # Create Service for AI Assistant
+   curl.exe -i -X POST http://localhost:8001/services      -d "name=cde-ai-assistant-service"      -d "url=http://cde-ai-assistant:8090"
+
+   # Route for Telegram & WhatsApp incoming webhooks
+   curl.exe -i -X POST http://localhost:8001/services/cde-ai-assistant-service/routes      -d "name=ai-assistant-webhooks"      -d "paths[]=/api/v1/assistant/webhook"      -d "strip_path=false"
+   ```
+
+### Verification & Testing
+1. Test Tool Calling Execution directly:
+   ```bash
+   curl.exe -i -X POST http://localhost:8090/api/tools/execute      -H "Content-Type: application/json"      -d '{"tool": "get_urgent_alerts", "params": {"limit": 5}}'
+   ```
+2. Test Telegram Bot query:
+   - Send `/status` or *"What are the current high severity alarms?"* to the configured Telegram Bot.
+   - Confirm the bot responds with synthesized alarm details from Redis Streams.
+3. Test WhatsApp Cloud Webhook:
+   - Send an inquiry message from an authorized WhatsApp number.
+   - Verify structured incident summary response is delivered to the chat.
+4. Test ElevenLabs Voice Session:
+   - Open ElevenLabs Conversational session connected to the assistant WebSocket.
+   - Spoken prompt: *"Give me the last 2 hours incident count at 38ALT."*
+   - Verify spoken audio reply with correct incident statistics.
+5. Test OpenClaw Tool Execution:
+   - Trigger OpenClaw task runner with prompt *"Audit CDE system health and report any failing services"*.
+   - Verify OpenClaw queries Prometheus and Elasticsearch via tool calling and outputs report.
+
+---
+
+## Phase 10: End-to-End Integration, Security Hardening & Acceptance Testing
 
 ### Objective
 Validate end-to-end telemetry flow from edge ingress through to lake storage, transformation, serving, real-time metrics monitoring, and centralized logging, while enforcing production firewall and credential security policies.
@@ -688,7 +836,10 @@ Validate end-to-end telemetry flow from edge ingress through to lake storage, tr
   - Kong Prometheus metrics actively plotting request rates, error codes, and upstream latencies.
 - [ ] **Centralized Logging (ELK):**
   - Kong gateway access logs automatically streamed to Elasticsearch via Logstash/Filebeat.
-  - All Docker container stdout/stderr searchable in Kibana Discover (`http://localhost:5601`).
+  - iMOPS incident service and container stdout/stderr searchable in Kibana Discover (`http://localhost:5601`).
+- [ ] **Omnichannel AI Assistant Validation:**
+  - AI Assistant successfully queries Redis Streams urgent alerts, iMOPS incidents, and MinIO Gold Parquet lake via tool calling.
+  - Telegram, WhatsApp, ElevenLabs voice, and OpenClaw endpoints tested and verified.
 - [ ] **Security Hardening:**
   - `key-auth` or basic authentication enabled on all public routes.
   - Rate limiting enforced (e.g., 60-100 requests/minute per consumer).
@@ -708,6 +859,7 @@ Validate end-to-end telemetry flow from edge ingress through to lake storage, tr
 | **Phase 4** | MinIO Object Store (Bronze Zone) | **Pending** | Day 3 | Buckets: `raw`, `curated`, `publish` |
 | **Phase 5** | DuckDB/Polars Lakehouse ETL | **Pending** | Day 4 | SQL transformation scripts |
 | **Phase 6** | Egress API & Kong Caching | **Pending** | Day 5 | PostgREST / FastAPI serving |
-| **Phase 7** | Infrastructure Monitoring (Grafana + Prometheus) | **Pending** | Day 6 | Host, cAdvisor & Kong Gateway dashboards |
-| **Phase 8** | Centralized Logging (ELK Stack) | **Pending** | Day 7 | Elasticsearch, Logstash, Kibana & Filebeat |
-| **Phase 9** | Hardening & E2E Acceptance Testing | **Pending** | Day 8 | Final acceptance, security & audit |
+| **Phase 7** | Infrastructure Monitoring (Grafana + Prometheus) | **Completed** | Day 6 | Full stack configured & provisioned in `grafana/` |
+| **Phase 8** | Centralized Logging (ELK Stack - Kong & iMOPS) | **Configured** | Day 7 | Docker compose & logstash pipelines defined in `elk/` |
+| **Phase 9** | Omnichannel AI Assistant (OpenClaw, ElevenLabs, Telegram, WhatsApp) | **Ready to Build** | Day 8 | Architecture, schemas & channel adapters defined |
+| **Phase 10** | Hardening & E2E Acceptance Testing | **Pending** | Day 9 | Final acceptance, security & audit |

@@ -460,9 +460,12 @@ The Common Data Environment (CDE) unifies perimeter ingress, dual-path real-time
                                    └────────────┬────────────┘
                                                 │
                                                 ▼ (Port 8088 / HTTPS 8443)
-                                 [ OUTBOUND CONSUMPTION ]
-                                 ├── Virtual Assistant (VA)
-                                 ├── Operations Dashboard
+                                 [ OUTBOUND CONSUMPTION & OBSERVABILITY ]
+                                 ├── Omnichannel AI Assistant (OpenClaw / ElevenLabs / Telegram / WhatsApp)
+                                 ├── Virtual Assistant (VA) & Control Center
+                                 ├── Grafana Dashboards (:3000) & Prometheus Metrics (:9090)
+                                 ├── Kibana Log Analytics (:5601) & Elasticsearch (:9200)
+                                 ├── Operations Dashboard & iMOPS Incident Monitor
                                  └── External Partner APIs
 ```
 
@@ -481,6 +484,9 @@ The Common Data Environment (CDE) unifies perimeter ingress, dual-path real-time
 | **Publish Store (Gold)** | **MinIO (`lake-publish`)** & **PostgreSQL** | Business aggregations, pre-calculated KPIs, operational views | Dual storage (Parquet + Relational) |
 | **Serving Layer** | **FastAPI / PostgREST** | RESTful access to Postgres and DuckDB SQL execution on Parquet | $10\text{–}50\text{ ms}$ query response |
 | **Egress Perimeter** | **Kong Gateway OSS 3.9** | In-memory `proxy-cache`, consumer identity tokens, query rate limits | Sub-millisecond on cache hit |
+| **Infra & API Observability** | **Prometheus + Grafana** | Host metrics (Node Exporter), container metrics (cAdvisor), Kong latency & RPS | Real-time TSDB (15s scrape interval) |
+| **Centralized Logging** | **ELK Stack (Elasticsearch, Logstash, Kibana)** | Ingest & index Kong API access logs, iMOPS incident logs, Docker container logs | Near real-time search ($< 1\text{ s}$) |
+| **Omnichannel AI Assistant** | **OpenClaw, ElevenLabs, Telegram, WhatsApp** | Natural language queries, voice conversation, live incident alerts across CDE data | $1\text{–}3\text{ s}$ conversational response |
 
 ---
 
@@ -499,4 +505,177 @@ The Common Data Environment (CDE) unifies perimeter ingress, dual-path real-time
    - External consumers, dashboards, and Virtual Assistants send requests to Kong Gateway (`/api/v1/metrics`, `/api/v1/reports`).
    - Kong checks consumer credentials, evaluates rate limits, and checks its in-memory `proxy-cache`.
    - On cache miss, Kong proxies to the Serving Microservice (PostgREST or FastAPI), which queries PostgreSQL (sub-20ms) or queries Gold Parquet via DuckDB.
+
+---
+
+# Infrastructure & API Monitoring (Grafana + Prometheus)
+
+The Common Data Environment incorporates an enterprise-grade observability stack located in the [grafana/](file:///c:/Projects/cde/grafana/readme.md) directory. It continuously measures host hardware utilization, Docker container health, and Kong Gateway API ingress performance.
+
+```
+  ┌────────────────────────────────────────────────────────┐
+  │                 METRIC TARGET SOURCES                  │
+  ├────────────────────────────┬───────────────────────────┤
+  │ Host System Metrics        │ cde-node-exporter (:9100) │
+  │ Container CPU / RAM / IO   │ cde-cadvisor (:8080)      │
+  │ Kong Ingress RPS & Latency │ kong-gateway (:8001)      │
+  └─────────────┬──────────────┴─────────────┬─────────────┘
+                │                            │
+                ▼ Scrape interval (15s)      ▼
+  ┌────────────────────────────────────────────────────────┐
+  │              PROMETHEUS TSDB (:9090)                   │
+  │        (15-day retention, time-series storage)         │
+  └────────────────────────────┬───────────────────────────┘
+                               │
+                               ▼ Datasource query
+  ┌────────────────────────────────────────────────────────┐
+  │                GRAFANA DASHBOARDS (:3000)              │
+  │  • Host & Cluster Overview (CPU, RAM, Disk, Network)   │
+  │  • Container Performance & Restart Tracking            │
+  │  • Kong Gateway Traffic, P95/P99 Latencies, Statuses   │
+  └────────────────────────────────────────────────────────┘
+```
+
+### Core Components & Port Mapping
+
+| Service | Port | Metric Scope | Configuration / Reference |
+| :--- | :--- | :--- | :--- |
+| **Grafana** | `3000` | Visualization UI, Alert Rules, Pre-provisioned Dashboards | `grafana/provisioning/` |
+| **Prometheus** | `9090` | Time-series TSDB engine with 15s scrape interval | [prometheus.yml](file:///c:/Projects/cde/grafana/prometheus/prometheus.yml) |
+| **Node Exporter** | `9100` | Host hardware metrics: CPU load, RAM utilization, Disk I/O | `prom/node-exporter:v1.8.2` |
+| **cAdvisor** | `8080` | Container runtime metrics: CPU per container, memory limits, OOM kills | `gcr.io/cadvisor/cadvisor:v0.49.1` |
+| **Kong Prometheus Plugin** | `8001/metrics` | Ingress request rate (RPS), status codes (`2xx`, `4xx`, `5xx`), P90–P99 latencies | [enable_kong_prometheus.ps1](file:///c:/Projects/cde/grafana/scripts/enable_kong_prometheus.ps1) |
+
+### Key Observability Features
+
+1. **Host & Container Telemetry:** Real-time visibility into whether Redis, MinIO, Kong, or n8n are CPU- or memory-constrained.
+2. **API Gateway Telemetry:** Instant tracking of traffic surges, upstream backend latency degradation, rate-limit rejections (`429`), and upstream network errors (`502`/`504`).
+3. **Automated Provisioning:** Datasources and the **CDE Overview Dashboard** are automatically loaded on container boot via Grafana provisioning files.
+
+> For deployment commands, firewall rules, and detailed dashboard guidance, refer to the [Grafana & Prometheus Monitoring Setup Guide](file:///c:/Projects/cde/grafana/docs/Grafana_Prometheus_Monitoring_Setup.md).
+
+---
+
+# Centralized Logging & Log Analytics (ELK Stack)
+
+The CDE provides unified log collection and search capabilities located in the [elk/](file:///c:/Projects/cde/elk/readme.md) directory. It aggregates logs across Kong Gateway API ingress routes, iMOPS incident services, n8n orchestration runs, and container daemons into Elasticsearch for real-time querying in Kibana.
+
+```
+ [ Kong Gateway (API Requests & Status) ] ──► Kong TCP-Log Plugin (:5000) ──┐
+                                                                            │
+ [ iMOPS Backend & Incident Service Logs ] ──┐                              ▼
+ [ n8n Workflow Ingestion Execution Logs ] ──┼──► Filebeat Agent ──► [ Logstash :5044 ]
+ [ Docker Containers & Host Syslog ] ────────┘   (/var/lib/docker/..)   (Grok & Schema Filter)
+                                                                            │
+                                                                            ▼
+                                                             [ Elasticsearch :9200 ]
+                                                             (Partitioned: cde-logs-*)
+                                                                            │
+                                                                            ▼
+                                                                [ Kibana UI :5601 ]
+                                                             (Discover, Dashboards, Audit)
+```
+
+### Log Sources & Aggregation Strategy
+
+| Source | Collection Mechanism | Target Index | Parsed Fields & Log Purpose |
+| :--- | :--- | :--- | :--- |
+| **Kong API Gateway** | Kong `tcp-log` or `http-log` plugin streaming to Logstash | `cde-kong-logs-YYYY.MM.DD` | Client IP, authenticated consumer ID, HTTP route, upstream latency, status codes (`200`, `401`, `429`, `500`). |
+| **iMOPS Incident Services** | Filebeat harvesting Docker container logs | `cde-imops-logs-YYYY.MM.DD` | Camera event IDs, VA incident classifications (`CROWDING`, `FIRE`, `INTRUSION`), dispatch status. |
+| **n8n Orchestration** | Filebeat harvesting stdout/stderr streams | `cde-n8n-logs-YYYY.MM.DD` | Ingestion poll status, execution IDs, delta watermark timestamps, retry errors. |
+| **Host & Daemon Logs** | Filebeat tailing `/var/log/syslog` and `/var/log/ufw.log` | `cde-system-logs-YYYY.MM.DD` | Kernel messages, UFW firewall dropped packets, SSH authentication logs. |
+
+### Operational Benefits
+
+- **Unified Request Tracing:** Correlate an edge request received at Kong Gateway with the downstream iMOPS incident monitor payload using unique request headers (`X-Kong-Request-Id`).
+- **Security & Incident Auditing:** Instant search in Kibana Discover for unauthorized API access attempts (`401`/`403`), brute-force token abuse, or sudden latency spikes.
+- **Root Cause Isolation:** Filter container error stacks across all services in a single synchronized time window.
+
+---
+
+# Omnichannel AI Assistant (Data Querying across CDE)
+
+The CDE incorporates an intelligent AI Assistant layer designed to enable operators, managers, and automated systems to query any data residing in the CDE using natural language across multiple interaction channels: **OpenClaw**, **ElevenLabs (Voice)**, **Telegram**, and **WhatsApp**.
+
+```
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+                                    OMNICHANNEL AI ASSISTANT ARCHITECTURE
+ ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+   [ INTERACTION CHANNELS ]
+   ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+   │     OPENCLAW      │   │    ELEVENLABS     │   │     TELEGRAM      │   │     WHATSAPP      │
+   │  Autonomous Agent │   │  Conversational   │   │  Operations Bot   │   │  Business Cloud   │
+   │  & Tool Runtime   │   │  Ultra-Low Latency│   │  (Instant Alerts  │   │  (Field Messaging │
+   │  (API/Code Exec)  │   │  Voice Assistant  │   │  & Interactive)   │   │  & Incident Data) │
+   └─────────┬─────────┘   └─────────┬─────────┘   └─────────┬─────────┘   └─────────┬─────────┘
+             │                       │                       │                       │
+             └───────────────────────┼───────────────────────┴───────────────────────┘
+                                     │ (User Prompts / Voice Input)
+                                     ▼
+                      ┌─────────────────────────────┐
+                      │    AI AGENT ORCHESTRATOR    │
+                      │  (NL2SQL, Tool Dispatcher,  │
+                      │   RAG Context Assembly)     │
+                      └──────────────┬──────────────┘
+                                     │
+                                     ▼ (Secure Authenticated Calls)
+                      ┌─────────────────────────────┐
+                      │      KONG API GATEWAY       │
+                      │  (Auth, ACL, Rate Limiting) │
+                      └──────────────┬──────────────┘
+                                     │
+           ┌─────────────────────────┼─────────────────────────┐
+           ▼                         ▼                         ▼
+  ┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
+  │ OPERATIONAL REST │      │  ANALYTICAL SQL  │      │ LOGS & AUDITING  │
+  │ (PostgREST /     │      │ (DuckDB Engine   │      │ (Elasticsearch   │
+  │  FastAPI / Redis)│      │  over Gold Lake) │      │  Search Cluster) │
+  ├──────────────────┤      ├──────────────────┤      ├──────────────────┤
+  │ • Live Incidents │      │ • Trend Analysis │      │ • API Error Logs │
+  │ • Active Sensors │      │ • Daily Rollups  │      │ • Ingestion Lag  │
+  │ • Urgent Alarms  │      │ • Parquet Query  │      │ • Security Audit │
+  └──────────────────┘      └──────────────────┘      └──────────────────┘
+```
+
+### Supported Channels & Capabilities
+
+| Channel | Interaction Mode | Primary Use Cases | Key Technology |
+| :--- | :--- | :--- | :--- |
+| **OpenClaw** | Autonomous Agent & Tool Runtime | Automated system diagnostics, dynamic workflow execution, API data extraction, and recursive data verification. | Function calling / Tool Calling API, JSON Schema tool definitions, headless browser/API agent runner. |
+| **ElevenLabs** | Voice Conversational Assistant | Hands-free operational queries for control room engineers and field technicians; spoken situational summaries and audio alerts. | ElevenLabs Conversational Voice API, low-latency Speech-to-Text (STT) + Text-to-Speech (TTS), WebSocket streaming. |
+| **Telegram** | Mobile & Desktop Chat Bot | Real-time incident notifications, interactive inline buttons, on-demand query commands (`/incidents`, `/status`, `/metric <id>`). | Telegram Bot API, webhook receiver via Kong Gateway, markdown message formatting. |
+| **WhatsApp** | Enterprise Messaging | Secure field worker reporting, automated scheduled shift summaries, push alerts with media attachments (camera snapshot citations). | WhatsApp Business Cloud API / Twilio messaging webhook, interactive template messages. |
+
+### What the AI Assistant Can Query
+
+The AI Assistant has unified query access across all layers of the CDE:
+
+1. **Real-Time Incidents & Alarms:**
+   - Active alarms in **Redis Streams** (`stream:urgent`).
+   - Incident statuses from **iMOPS** (`/api/incidents/monitor`, crowding, loitering, intrusion).
+2. **Operational & Telemetry Metrics:**
+   - Sensor readings and station statuses cached in **PostgreSQL / Redis**.
+   - Gateway health, error rates, and request counts from **Kong Gateway & Prometheus**.
+3. **Historical & Analytical Data:**
+   - Historical trend analysis by executing parameterized SQL queries via **DuckDB** against the **MinIO Gold Parquet lake** (`s3://lake-publish/`).
+4. **Log Diagnostics & System Health:**
+   - Gateway access patterns, failed requests, and container error traces from **Elasticsearch** indices (`cde-*-logs-*`).
+
+### Tool Calling & Query Dispatch Pattern
+
+When a user submits a natural-language prompt (e.g., *"Summarize all high-severity crowding incidents at 38ALT over the last 6 hours and report API latency"*):
+
+1. **Channel Ingress:** The prompt arrives via Telegram webhook, WhatsApp Cloud API, ElevenLabs audio stream (transcribed to text), or OpenClaw execution loop.
+2. **Intent & Tool Selection:** The LLM orchestrator parses the prompt and generates function calls matching structured schemas:
+   - `query_incidents(facility="38ALT", severity="HIGH", time_range="6h")`
+   - `get_gateway_metrics(metric="latency_p95", window="6h")`
+3. **Security & Gateway Routing:** Function calls are dispatched as authenticated requests through Kong Gateway (`http://kong:8088`), enforcing rate limits and consumer ACLs.
+4. **Data Retrieval:** Kong routes requests to:
+   - The **PostgREST / FastAPI** service for operational incident records.
+   - The **Prometheus HTTP API** for P95 latency metrics.
+   - The **DuckDB service** if historical lake analysis is required.
+5. **Synthesis & Channel Response:** The LLM synthesizes the collected records into a concise response:
+   - **Text Channels (Telegram / WhatsApp / OpenClaw):** Formatted Markdown summary with key indicators and incident IDs.
+   - **Voice Channel (ElevenLabs):** Rendered into natural conversational speech and streamed back to the caller over WebSocket.
 
