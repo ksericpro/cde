@@ -215,11 +215,18 @@ Kong Gateway acts as the perimeter **Authorizer, Rate-Limiter, and Dynamic Reque
 Automated scripts for one-click setup or rebuild are located in `apigw/scripts/`:
 
 ```bash
-# SICC VA Ingress
+# 1. SICC VA Ingress Setup & Test
 bash scripts/setup_sicc_va.sh        # Linux (webapp)
 powershell -File scripts/setup_sicc_va.ps1  # Windows
+bash scripts/test_sicc_va.sh         # Test all 21 camera routes
 
-# DORS VA Ingress
+# 2. Digital Twin WebSocket & Real-Time Stream Setup & Test
+bash scripts/setup_twin_provider.sh  # Linux (webapp)
+powershell -File scripts/setup_twin_provider.ps1  # Windows
+node scripts/test_ws_client.js       # Verify WebSocket handshake & room subscription
+node scripts/test_ws_client.js --listen # Continuous live event listener
+
+# 3. DORS VA Ingress Setup
 bash scripts/setup_dors_va.sh        # Linux (webapp)
 powershell -File scripts/setup_dors_va.ps1  # Windows
 ```

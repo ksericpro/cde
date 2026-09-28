@@ -15,6 +15,10 @@ Content-Type: application/json
 
 Both **Windows (PowerShell)** and **Linux / macOS (Bash)** commands are provided for every step.
 
+> [!TIP]
+> 🚀 **Quick Commands Summary:** Jump straight to the cheat sheet and setup/testing commands at:  
+> 👉 [**Quick Reference & Summary: Setup and Testing of SICC VA & WebSocket (Line 79)**](#quick-reference--summary-setup-and-testing-of-sicc-va--websocket)
+
 ---
 
 ## 1. Overview & Architecture
@@ -70,6 +74,142 @@ sequenceDiagram
     Monitor-->>Kong: HTTP 200 OK (Incident Created & Broadcast)
     Kong-->>VA: HTTP 200 OK
 ```
+
+---
+
+## Quick Reference & Summary: Setup and Testing of SICC VA & WebSocket
+
+This summary provides a fast reference for setting up and testing both the **SICC Video Analytics (VA) Ingress** and the **Digital Twin Real-Time WebSocket / Socket.IO stream** via Kong Gateway.
+
+### Quick Command Reference Table
+
+| Target Component | Task | Linux / macOS (Bash) | Windows (PowerShell) |
+| :--- | :--- | :--- | :--- |
+| **SICC VA Ingress** | **Setup Gateway** | `bash scripts/setup_sicc_va.sh 10.65.51.252:13000` | `powershell -ExecutionPolicy Bypass -File scripts\setup_sicc_va.ps1 -UpstreamHost "10.65.51.252:13000"` |
+| **SICC VA Ingress** | **Run Test Suite** | `bash scripts/test_sicc_va.sh localhost:8088` | `powershell -ExecutionPolicy Bypass -File scripts\test_sicc_va.ps1 -KongHost "localhost:8088"` |
+| **SICC VA Ingress** | **Manual Test** | `curl -i -u vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM http://localhost:8088/va/sov-38alt-l4-icc-1-crowding` | `curl.exe -i -u vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM http://localhost:8088/va/sov-38alt-l4-icc-1-crowding` |
+| **Twin WebSocket** | **Setup Gateway** | `bash scripts/setup_twin_provider.sh 10.65.51.252:13000 http://localhost:8001` | `powershell -ExecutionPolicy Bypass -File scripts\setup_twin_provider.ps1 -UpstreamHost "10.65.51.252:13000"` |
+| **Twin WebSocket** | **Verify Handshake** | `node scripts/test_ws_client.js` | `node scripts\test_ws_client.js` |
+| **Twin WebSocket** | **Continuous Listen** | `node scripts/test_ws_client.js --listen` | `node scripts\test_ws_client.js --listen` |
+| **Twin WebSocket** | **Native RFC 6455** | `node scripts/test_ws_client.js /ws` | `node scripts\test_ws_client.js /ws` |
+| **Kong Gateway** | **Reset / Clean Slate**| `bash scripts/reset_kong.sh -y` | `powershell -ExecutionPolicy Bypass -File scripts\reset_kong.ps1 -Force` |
+
+---
+
+### Part A: SICC Video Analytics (VA) Setup & Verification
+
+#### 1. Setup Configuration
+The setup script configures:
+- **Service:** `imops-sicc-incident-service` forwarding to `http://<BACKEND_HOST>:13000/api/incidents/monitor`.
+- **Security & Policies:** Basic Auth (`hide_credentials: false`), Rate Limiting (`60 req/min`), ACL (`sicc_group`).
+- **Consumer:** `va_system_consumer` (`vizzio@imops.local` / `xAJHkkm7m3V5MhtF0xGM`).
+- **21 VA Routes:** All `/va/sov-38alt-...` routes with Lua request transformers injecting live timestamps and JSON payloads.
+
+Run setup from the `apigw/` folder:
+```bash
+# Linux / macOS (specify your backend IP:port, defaults to 10.65.51.252:13000):
+bash scripts/setup_sicc_va.sh 10.65.51.252:13000
+
+# Windows:
+powershell -ExecutionPolicy Bypass -File scripts\setup_sicc_va.ps1 -UpstreamHost "10.65.51.252:13000"
+```
+
+#### 2. Verification & Testing
+Run the automated test suite verifying all 21 camera routes:
+```bash
+# Linux / macOS:
+bash scripts/test_sicc_va.sh
+
+# Windows:
+powershell -ExecutionPolicy Bypass -File scripts\test_sicc_va.ps1
+```
+**Expected Output:**
+```
+[PASS] Route 1:  /va/sov-38alt-l4-icc-1-crowding -> HTTP 200 OK (Incident logged & broadcast)
+[PASS] Route 2:  /va/sov-38alt-l4-lift-lobby-loitering -> HTTP 200 OK
+...
+[PASS] 21 of 21 VA camera routes verified successfully.
+```
+
+---
+
+### Part B: Digital Twin Real-Time WebSocket & Socket.IO Setup & Verification
+
+#### 1. Setup Configuration
+The setup script configures:
+- **Real-Time Service:** `imops-twin-realtime-service` with 300s read/write timeouts for persistent streaming connections.
+- **REST Service:** `imops-twin-rest-service` for state reconciliation (`/api/visualization`, `/api/auth`).
+- **Streaming Routes:** `/socket.io` (Engine.IO v4 / Socket.IO) and `/ws` (Native RFC 6455 WebSocket).
+- **Plugins:** CORS headers for WebSocket upgrade negotiation (`Upgrade`, `Sec-WebSocket-*`) and rate-limiting.
+
+Run setup from the `apigw/` folder:
+```bash
+# Linux / macOS:
+bash scripts/setup_twin_provider.sh 10.65.51.252:13000 http://localhost:8001
+
+# Windows:
+powershell -ExecutionPolicy Bypass -File scripts\setup_twin_provider.ps1 -UpstreamHost "10.65.51.252:13000" -KongAdminUrl "http://localhost:8001"
+```
+
+#### 2. Verification & Testing with Test Client
+Run the Node.js WebSocket test client [`test_ws_client.js`](file:///c:/Projects/cde/apigw/scripts/test_ws_client.js):
+
+> [!IMPORTANT]
+> **Bash Quoting Rule:** Always enclose URLs containing query parameters (`&`) in quotes, e.g. `"ws://localhost:8088/socket.io/?EIO=4&transport=websocket"`. An unquoted `&` in Bash will background the command prematurely!
+
+```bash
+# 1. Automatic Handshake & Site Room Subscription Test (Socket.IO):
+node scripts/test_ws_client.js
+
+# 2. Continuous Listener (keep stream open to receive live incident push events):
+node scripts/test_ws_client.js --listen
+
+# 3. Test Native RFC 6455 WebSocket endpoint:
+node scripts/test_ws_client.js /ws
+```
+
+**Expected Successful Handshake Output:**
+```text
+==============================================================
+  Digital Twin Real-Time WebSocket Client Connector
+==============================================================
+Target:     ws://localhost:8088/socket.io/?EIO=4&transport=websocket
+API Key:    vizzio-digital-twin-key-2026
+Mode:       Handshake Verification
+--------------------------------------------------------------
+
+[1] Protocol Upgrade Success:
+    Status:           101 Switching Protocols
+    Kong Gateway:     kong/3.9.3
+    Via:              1.1 kong/3.9.3
+    Upstream Latency: 4 ms
+    Proxy Latency:    1 ms
+--------------------------------------------------------------
+
+[2] Engine.IO Session Handshake Confirmed:
+    Session ID:       rTczx1P91A9R8I_hAAAA
+    Ping Interval:    25000 ms
+    Ping Timeout:     20000 ms
+
+[3] Handshake Step 2: Connecting to Socket.IO Namespace (packet 40)...
+    ✅ Socket.IO Namespace Connected! (packet 40 ack received)
+
+[4] Subscribing to Site Room: site:SOV @ 38ALT (packet 42)...
+
+✅ Verification Complete: Handshake, Session, and Topic Subscription OK.
+```
+
+#### 3. Test Raw WebSocket Upgrade with cURL
+You can also verify that Kong successfully performs HTTP `101 Switching Protocols` using `curl`:
+```bash
+curl -i -N \
+  -H "Connection: Upgrade" \
+  -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  "http://localhost:8088/socket.io/?EIO=4&transport=websocket"
+```
+**Expected Response:** `HTTP/1.1 101 Switching Protocols`, `Upgrade: websocket`, `Connection: Upgrade`.
 
 ---
 
