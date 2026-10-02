@@ -393,7 +393,7 @@ upstream:
 
 {
   "site": "SOV @ 38ALT",
-  "deviceName": "SOV 38ALT Main Gate Perimiter VA INTRUSION",
+  "deviceName": "SOV 38ALT Main Gate Perimeter VA INTRUSION",
   "incidentType": "INTRUSION",
   "mode": "incident",
   "metadata": {

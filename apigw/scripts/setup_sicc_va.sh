@@ -392,7 +392,7 @@ create_sicc_route \
 create_sicc_route \
   "va-sov-38alt-main-gate-perimeter-intrusion" \
   '["/va/sov-38alt-main-gate-perimeter-intrusion"]' \
-  "SOV 38ALT Main Gate Perimiter VA INTRUSION" \
+  "SOV 38ALT Main Gate Perimeter VA INTRUSION" \
   "INTRUSION" \
   "intrusion_sov_38alt_main_gate_perimeter" \
   "SOV 38ALT Main Gate Perimeter"

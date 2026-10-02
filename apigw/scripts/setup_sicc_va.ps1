@@ -328,7 +328,7 @@ $routes = @(,
     @{
         Name = "va-sov-38alt-main-gate-perimeter-intrusion"
         Paths = @("/va/sov-38alt-main-gate-perimeter-intrusion")
-        DeviceName = "SOV 38ALT Main Gate Perimiter VA INTRUSION"
+        DeviceName = "SOV 38ALT Main Gate Perimeter VA INTRUSION"
         IncidentType = "INTRUSION"
         Webhook = "intrusion_sov_38alt_main_gate_perimeter"
         Camera = "SOV 38ALT Main Gate Perimeter"

@@ -66,7 +66,7 @@ for r in rows[2:]: # items 3 to 21
     elif cam == 'SOV 38ALT Main Gate Perimiter':
         cam = 'SOV 38ALT Main Gate Perimeter'
         
-    device_name = r['J'].strip()
+    device_name = r['J'].strip().replace('Perimiter', 'Perimeter')
     
     entries.append({
         'num': idx,
