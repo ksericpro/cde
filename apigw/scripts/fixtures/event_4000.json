@@ -1,0 +1,14 @@
+{
+  "type": "event.publish",
+  "timestamp": "2026-10-07T05:05:00.000Z",
+  "data": {
+    "id": "win-test-tamper-idle-01",
+    "eventTimestamp": "2026-10-07T05:04:58.000Z",
+    "eventCode": "4000",
+    "eventSourceId": "proscalar-src-1",
+    "eventSourceName": "OT-CTR-MAIN GATE",
+    "eventPointId": "proscalar-pt-1",
+    "eventPointName": "CV485",
+    "message": "Logical Reader Tamper IDLE."
+  }
+}

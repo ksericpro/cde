@@ -1,0 +1,335 @@
+{
+      "name": "Proscalar",
+      "item": [
+        {
+          "name": "Door Forced Open (Active Access Alarm)",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "password",
+                  "value": "{{PROSCALAR_PASS}}",
+                  "type": "string"
+                },
+                {
+                  "key": "username",
+                  "value": "{{PROSCALAR_USER}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"type\": \"event.publish\",\r\n  \"timestamp\": \"2026-06-09T03:00:00.000Z\",\r\n  \"data\": {\r\n    \"id\": \"mock-access-event-id\",\r\n    \"eventTimestamp\": \"2026-06-09T02:59:58.000Z\",\r\n    \"eventCode\": \"5002\",\r\n    \"eventSourceId\": \"proscalar-test-source-id\",\r\n    \"eventSourceName\": \"OT-CTR-MAIN GATE\",\r\n    \"eventPointId\": \"proscalar-test-point-id\",\r\n    \"eventPointName\": \"OT-MAIN GATE\",\r\n    \"message\": \"Logical Door Forced Open ACTIVE.\",\r\n    \"receivedTimestamp\": \"2026-06-09T02:59:59Z\"\r\n  }\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/proscalar/webhook",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "proscalar",
+                "webhook"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reader Tamper (Active Tamper Alarm)",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "password",
+                  "value": "{{PROSCALAR_PASS}}",
+                  "type": "string"
+                },
+                {
+                  "key": "username",
+                  "value": "{{PROSCALAR_USER}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"type\": \"event.publish\",\r\n  \"timestamp\": \"2026-06-09T03:05:00.000Z\",\r\n  \"data\": {\r\n    \"id\": \"mock-tamper-event-id\",\r\n    \"eventTimestamp\": \"2026-06-09T03:04:58.000Z\",\r\n    \"eventCode\": \"4001\",\r\n    \"eventSourceId\": \"proscalar-test-source-id\",\r\n    \"eventSourceName\": \"178\",\r\n    \"eventPointId\": \"proscalar-test-point-id\",\r\n    \"eventPointName\": \"CV485\",\r\n    \"message\": \"Logical Reader Tamper ACTIVE.\",\r\n    \"receivedTimestamp\": \"2026-06-09T03:04:59Z\"\r\n  }\r\n}\r\n\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/proscalar/webhook",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "proscalar",
+                "webhook"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reader Tamper Idle (Auto resolve)",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "password",
+                  "value": "{{PROSCALAR_PASS}}",
+                  "type": "string"
+                },
+                {
+                  "key": "username",
+                  "value": "{{PROSCALAR_USER}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"type\": \"event.publish\",\r\n  \"timestamp\": \"2026-06-09T03:10:00.000Z\",\r\n  \"data\": {\r\n    \"id\": \"mock-tamper-idle-id\",\r\n    \"eventTimestamp\": \"2026-06-09T03:09:58.000Z\",\r\n    \"eventCode\": \"4000\",\r\n    \"eventSourceId\": \"proscalar-test-source-id\",\r\n    \"eventSourceName\": \"178\",\r\n    \"eventPointId\": \"proscalar-test-point-id\",\r\n    \"eventPointName\": \"CV485\",\r\n    \"message\": \"Logical Reader Tamper IDLE.\",\r\n    \"receivedTimestamp\": \"2026-06-09T03:09:59Z\"\r\n  }\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/proscalar/webhook",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "proscalar",
+                "webhook"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Fire Alarm Group (Safety/Fire Aggregation)",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "password",
+                  "value": "{{PROSCALAR_PASS}}",
+                  "type": "string"
+                },
+                {
+                  "key": "username",
+                  "value": "{{PROSCALAR_USER}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"type\": \"alarm.publish\",\r\n  \"timestamp\": \"2026-06-09T03:15:00.000Z\",\r\n  \"data\": {\r\n    \"alarmGroupId\": \"mock-alarm-group-id-99\",\r\n    \"groupEventCode\": \"12008\",\r\n    \"name\": \"FIRE SIGNAL ALARM GROUP\",\r\n    \"msg\": \"Alarm Monitoring Group Alarm. Alarm Zone OT-OPEN AREA\",\r\n    \"eventSourceId\": \"proscalar-test-source-id\",\r\n    \"eventSourceName\": \"OT-CTR-DOOR 1\",\r\n    \"eventTimestamp\": \"2026-06-09T03:14:58.000Z\",\r\n    \"accessZones\": [\r\n      {\r\n        \"alarmZoneId\": \"mock-zone-id-a\",\r\n        \"name\": \"ZONE A\",\r\n        \"type\": \"FIRE\",\r\n        \"state\": \"TRIGGERED\",\r\n        \"eventCode\": \"12000\"\r\n      },\r\n      {\r\n        \"alarmZoneId\": \"mock-zone-id-b\",\r\n        \"name\": \"ZONE B\",\r\n        \"type\": \"INSTANT\",\r\n        \"state\": \"TRIGGERED\",\r\n        \"eventCode\": \"12000\"\r\n      }\r\n    ]\r\n  }\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/proscalar/webhook",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "proscalar",
+                "webhook"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "System & Hardware Alarm: AC Power Failure",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "password",
+                  "value": "{{PROSCALAR_PASS}}",
+                  "type": "string"
+                },
+                {
+                  "key": "username",
+                  "value": "{{PROSCALAR_USER}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"type\": \"event.publish\",\r\n  \"timestamp\": \"2026-06-09T03:20:00.000Z\",\r\n  \"data\": {\r\n    \"id\": \"mock-power-failure-id\",\r\n    \"eventTimestamp\": \"2026-06-09T03:19:58.000Z\",\r\n    \"eventCode\": \"1000\",\r\n    \"eventSourceId\": \"proscalar-test-source-id\",\r\n    \"eventSourceName\": \"OT-CTR-MAIN GATE\",\r\n    \"eventPointId\": \"proscalar-test-point-id\",\r\n    \"eventPointName\": \"Main Enclosure Power\",\r\n    \"message\": \"Controller AC Power Failure ACTIVE.\",\r\n    \"receivedTimestamp\": \"2026-06-09T03:19:59Z\"\r\n  }\r\n}\r\n\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/proscalar/webhook",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "proscalar",
+                "webhook"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Environmental & Safety Alarm (Device-level): Emergency Door Release",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "password",
+                  "value": "{{PROSCALAR_PASS}}",
+                  "type": "string"
+                },
+                {
+                  "key": "username",
+                  "value": "{{PROSCALAR_USER}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"type\": \"event.publish\",\r\n  \"timestamp\": \"2026-06-09T03:25:00.000Z\",\r\n  \"data\": {\r\n    \"id\": \"mock-emergency-release-id\",\r\n    \"eventTimestamp\": \"2026-06-09T03:24:58.000Z\",\r\n    \"eventCode\": \"5014\",\r\n    \"eventSourceId\": \"proscalar-test-source-id\",\r\n    \"eventSourceName\": \"OT-CTR-MAIN GATE\",\r\n    \"eventPointId\": \"proscalar-test-point-id\",\r\n    \"eventPointName\": \"EMERGENCY DOOR RELEASE BUTTON\",\r\n    \"message\": \"Emergency Exit Button Pressed ACTIVE.\",\r\n    \"receivedTimestamp\": \"2026-06-09T03:24:59Z\"\r\n  }\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BACKEND_API}}/api/proscalar/webhook",
+              "host": [
+                "{{BACKEND_API}}"
+              ],
+              "path": [
+                "api",
+                "proscalar",
+                "webhook"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }

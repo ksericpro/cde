@@ -88,7 +88,7 @@ Deploy the workflow engine responsible for receiving pushed webhooks from Kong a
    ```bash
    docker compose up -d
    ```
-3. Access the visual editor at **[http://localhost:5678](http://localhost:5678)** and create the primary admin credentials.
+3. Access the visual editor at **[https://localhost:5678](https://localhost:5678)** (note: uses **HTTPS**; accept self-signed certificate if prompted) and create the primary admin credentials.
 
 ### Gateway Integration
 Register n8n inside Kong to proxy inbound requests:

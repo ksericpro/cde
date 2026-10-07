@@ -1,0 +1,22 @@
+{
+  "type": "alarm.publish",
+  "timestamp": "2026-10-07T05:10:00.000Z",
+  "data": {
+    "alarmGroupId": "GRP-FIRE-WIN-01",
+    "groupEventCode": "12008",
+    "name": "EAST WING FIRE CLUSTER",
+    "eventSourceName": "East Wing Panel 1",
+    "accessZones": [
+      {
+        "name": "East Lobby",
+        "type": "NORMAL",
+        "state": "ACTIVE"
+      },
+      {
+        "name": "Server Room A",
+        "type": "FIRE",
+        "state": "TRIGGERED"
+      }
+    ]
+  }
+}
