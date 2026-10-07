@@ -57,7 +57,15 @@ services:
       - "8443:8443"  # Public Proxy (HTTPS)
       - "8001:8001"  # Admin API
       - "8002:8002"  # Kong Manager UI
+    networks:
+      - default
+      - cde-network
     restart: unless-stopped
+
+networks:
+  cde-network:
+    name: cde-network
+    external: true
 
 volumes:
   pgdata:

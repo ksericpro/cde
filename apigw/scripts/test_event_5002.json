@@ -1,0 +1,14 @@
+{
+  "type": "event.publish",
+  "timestamp": "2026-06-09T03:00:00.000Z",
+  "data": {
+    "id": "kong-test-01",
+    "eventTimestamp": "2026-06-09T02:59:58.000Z",
+    "eventCode": "5002",
+    "eventSourceId": "proscalar-source-1",
+    "eventSourceName": "OT-CTR-MAIN GATE",
+    "eventPointId": "proscalar-point-1",
+    "eventPointName": "OT-MAIN GATE",
+    "message": "Logical Door Forced Open ACTIVE."
+  }
+}

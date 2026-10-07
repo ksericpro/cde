@@ -1,0 +1,413 @@
+{
+  "id": "proscalar-pipeline-v1",
+  "name": "Proscalar Webhook Ingestion Pipeline (Option C)",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "proscalar",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-trigger",
+      "name": "Proscalar Webhook Ingress",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "webhookId": "proscalar"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "event.publish",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "alarm.publish",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-switch-envelope",
+      "name": "Switch Envelope Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || {};\nconst data = body.data || {};\nconst eventCode = String(data.eventCode || '');\n\nconst mappingTable = {\n  '5001': { incidentType: 'door_held_open', severity: 'medium', isIdle: false, eventName: 'Door Held Open' },\n  '5002': { incidentType: 'door_forced_open', severity: 'high', isIdle: false, eventName: 'Door Forced Open' },\n  '4001': { incidentType: 'reader_tamper', severity: 'high', isIdle: false, eventName: 'Reader Tamper' },\n  '4000': { incidentType: 'reader_tamper', severity: 'low', isIdle: true, pairCode: '4001', eventName: 'Reader Tamper Idle' },\n  '1003': { incidentType: 'panel_tamper', severity: 'critical', isIdle: false, eventName: 'Panel Tamper' },\n  '1002': { incidentType: 'panel_tamper', severity: 'low', isIdle: true, pairCode: '1003', eventName: 'Panel Tamper Idle' },\n  '1000': { incidentType: 'power_failure', severity: 'high', isIdle: false, eventName: 'Power Failure' },\n  '5014': { incidentType: 'emergency_exit', severity: 'critical', isIdle: false, eventName: 'Emergency Exit Opened' },\n  '5015': { incidentType: 'emergency_exit', severity: 'low', isIdle: true, pairCode: '5014', eventName: 'Emergency Exit Restored' }\n};\n\nconst mapping = mappingTable[eventCode] || {\n  incidentType: 'invalid_credential',\n  severity: 'medium',\n  isIdle: false,\n  eventName: 'Proscalar Security Alert'\n};\n\nconst deviceName = data.eventPointName || data.eventSourceName || 'Proscalar Device';\nconst title = `${mapping.eventName} - ${deviceName}`;\n\nreturn [{\n  json: {\n    type: body.type,\n    eventCode,\n    isIdleCode: mapping.isIdle,\n    activePairCode: mapping.pairCode || null,\n    incidentType: mapping.incidentType,\n    severity: mapping.severity,\n    deviceName,\n    title,\n    eventSourceId: data.eventSourceId,\n    eventPointId: data.eventPointId,\n    eventTimestamp: data.eventTimestamp || body.timestamp || new Date().toISOString(),\n    message: data.message || mapping.eventName,\n    rawData: data\n  }\n}];"
+      },
+      "id": "node-classify-event",
+      "name": "Classify Event Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "idle-check",
+              "leftValue": "={{ $json.isIdleCode }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-idle",
+      "name": "Is Idle Code?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [940, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:13000/api/incidents/monitor",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"incidentType\": \"{{ $json.incidentType }}\",\n  \"deviceName\": \"{{ $json.deviceName }}\",\n  \"title\": \"{{ $json.title }}\",\n  \"severity\": \"{{ $json.severity }}\",\n  \"site\": \"Taylor's University\",\n  \"preResolved\": true,\n  \"mode\": \"incident\",\n  \"metadata\": {\n    \"proscalar_event_code\": \"{{ $json.eventCode }}\",\n    \"proscalar_event_source_id\": \"{{ $json.eventSourceId }}\",\n    \"proscalar_event_point_id\": \"{{ $json.eventPointId }}\",\n    \"proscalar_event_timestamp\": \"{{ $json.eventTimestamp }}\",\n    \"source\": \"proscalar_n8n_pipeline\"\n  }\n}",
+        "options": {}
+      },
+      "id": "node-http-create-point",
+      "name": "Create Point Incident",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:13000/api/proscalar/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg=="
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"type\": \"event.publish\",\n  \"data\": {\n    \"eventCode\": \"{{ $json.eventCode }}\",\n    \"eventSourceId\": \"{{ $json.eventSourceId }}\",\n    \"eventPointId\": \"{{ $json.eventPointId }}\",\n    \"eventTimestamp\": \"{{ $json.eventTimestamp }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "node-http-resolve-point",
+      "name": "Resolve Point Incident",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || {};\nconst data = body.data || {};\nconst groupCode = String(data.groupEventCode || '');\nconst accessZones = data.accessZones || [];\n\nconst isResolution = ['12001', '12009', '12015'].includes(groupCode);\n\nconst isFire = accessZones.some(z => String(z.type).toUpperCase() === 'FIRE');\nconst isPanic = accessZones.some(z => String(z.type).toUpperCase() === 'PANIC');\nconst isMedical = accessZones.some(z => String(z.type).toUpperCase() === 'MEDICAL');\n\nlet incidentType = 'group_alarm';\nlet severity = 'medium';\n\nif (isFire) {\n  incidentType = 'fire_alarm';\n  severity = 'critical';\n} else if (isPanic) {\n  incidentType = 'panic_alarm';\n  severity = 'critical';\n} else if (isMedical) {\n  incidentType = 'medical_alarm';\n  severity = 'high';\n} else if (groupCode === '12008') {\n  incidentType = 'group_alarm_triggered';\n  severity = 'high';\n}\n\nconst deviceName = data.eventSourceName || data.name || 'Alarm Monitoring Group';\nconst title = `${data.name || 'ALARM GROUP'} - ${incidentType.toUpperCase()}`;\n\nreturn [{\n  json: {\n    type: body.type,\n    alarmGroupId: data.alarmGroupId,\n    groupEventCode: groupCode,\n    isResolution,\n    isTrigger: groupCode === '12008' || !isResolution,\n    isSafetyCategory: (isFire || isPanic || isMedical),\n    incidentType,\n    severity,\n    title,\n    deviceName,\n    eventTimestamp: data.eventTimestamp || body.timestamp || new Date().toISOString(),\n    rawData: data\n  }\n}];"
+      },
+      "id": "node-classify-group",
+      "name": "Safety Priority Classifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "group-resolution-check",
+              "leftValue": "={{ $json.isResolution }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-group-resolution",
+      "name": "Is Group Resolution?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [940, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:13000/api/incidents/monitor",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"incidentType\": \"{{ $json.incidentType }}\",\n  \"deviceName\": \"{{ $json.deviceName }}\",\n  \"title\": \"{{ $json.title }}\",\n  \"severity\": \"{{ $json.severity }}\",\n  \"site\": \"Taylor's University\",\n  \"preResolved\": true,\n  \"mode\": \"incident\",\n  \"metadata\": {\n    \"proscalar_alarm_group_id\": \"{{ $json.alarmGroupId }}\",\n    \"proscalar_group_code\": \"{{ $json.groupEventCode }}\",\n    \"proscalar_event_timestamp\": \"{{ $json.eventTimestamp }}\",\n    \"source\": \"proscalar_n8n_pipeline\"\n  }\n}",
+        "options": {}
+      },
+      "id": "node-http-create-group",
+      "name": "Create Group Incident",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:13000/api/proscalar/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpwcm9zY2FsYXJfc2VjdXJlX3Bhc3NfMTIz"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"type\": \"alarm.publish\",\n  \"data\": {\n    \"alarmGroupId\": \"{{ $json.alarmGroupId }}\",\n    \"groupEventCode\": \"{{ $json.groupEventCode }}\",\n    \"eventTimestamp\": \"{{ $json.eventTimestamp }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "node-http-resolve-group",
+      "name": "Resolve Group Incident",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 380]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"status\": \"processed\",\n  \"pipeline\": \"Option C (Kong Gateway + n8n)\",\n  \"timestamp\": \"{{ $now.toISO() }}\",\n  \"executionId\": \"{{ $execution.id }}\"\n}",
+        "options": {}
+      },
+      "id": "node-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1460, 300]
+    }
+  ],
+  "connections": {
+    "Proscalar Webhook Ingress": {
+      "main": [
+        [
+          {
+            "node": "Switch Envelope Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Envelope Type": {
+      "main": [
+        [
+          {
+            "node": "Classify Event Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Safety Priority Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Event Code": {
+      "main": [
+        [
+          {
+            "node": "Is Idle Code?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Idle Code?": {
+      "main": [
+        [
+          {
+            "node": "Resolve Point Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Point Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Safety Priority Classifier": {
+      "main": [
+        [
+          {
+            "node": "Is Group Resolution?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Group Resolution?": {
+      "main": [
+        [
+          {
+            "node": "Resolve Group Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Group Incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Point Incident": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Point Incident": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Group Incident": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Group Incident": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
