@@ -24,10 +24,7 @@ apigw/pgdata/
 apigw/data/
 
 # Ingestion (n8n)
-n8n/n8n_data/*
-!n8n/n8n_data/nodes/
-!n8n/n8n_data/nodes/package.json
-!n8n/n8n_data/.gitkeep
+n8n/n8n_data/
 
 # Observability (Grafana & Prometheus)
 grafana/grafana_data/
