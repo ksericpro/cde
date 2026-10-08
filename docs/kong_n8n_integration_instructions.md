@@ -700,11 +700,11 @@ The pre-configured Taylor's University workflow targets iMOPS at `http://10.99.3
 3. In the upper-right corner, click the **`...`** (three dots) menu button $\rightarrow$ select **Import from File**.
 4. Select the Taylor workflow file:
    - **[`n8n/workflows/proscalar_ingestion_workflow_taylor.json`](file:///c:/Projects/cde/n8n/workflows/proscalar_ingestion_workflow_taylor.json)**
-5. Once imported, confirm the 4 HTTP Request nodes target `http://10.99.32.54:13000`:
-   - `Create Point Incident` $\rightarrow$ `http://10.99.32.54:13000/api/incidents/monitor`
-   - `Resolve Point Incident` $\rightarrow$ `http://10.99.32.54:13000/api/proscalar/webhook`
-   - `Create Group Incident` $\rightarrow$ `http://10.99.32.54:13000/api/incidents/monitor`
-   - `Resolve Group Incident` $\rightarrow$ `http://10.99.32.54:13000/api/proscalar/webhook`
+5. Once imported, confirm all 4 HTTP Request nodes target `POST http://10.99.32.54:13000/api/incidents/monitor`:
+   - `Create Point Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor`
+   - `Resolve Point Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor` (`status: "RESOLVED"`)
+   - `Create Group Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor`
+   - `Resolve Group Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor` (`status: "RESOLVED"`)
 6. Toggle the **Active** switch in the top-right corner to **ON (green)**.
 7. Click **Save** (`Ctrl + S`).
 

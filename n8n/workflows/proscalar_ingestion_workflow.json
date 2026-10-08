@@ -141,13 +141,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.99.32.54:13000/api/proscalar/webhook",
+        "url": "http://10.99.32.54:13000/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg=="
+              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
             },
             {
               "name": "Content-Type",
@@ -157,7 +157,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"type\": \"event.publish\",\n  \"data\": {\n    \"eventCode\": \"{{ $json.eventCode }}\",\n    \"eventSourceId\": \"{{ $json.eventSourceId }}\",\n    \"eventPointId\": \"{{ $json.eventPointId }}\",\n    \"eventTimestamp\": \"{{ $json.eventTimestamp }}\"\n  }\n}",
+        "jsonBody": "={\n  \"incidentType\": \"{{ $json.incidentType }}\",\n  \"deviceName\": \"{{ $json.deviceName }}\",\n  \"title\": \"{{ $json.title }}\",\n  \"severity\": \"low\",\n  \"site\": \"Taylor's University\",\n  \"preResolved\": true,\n  \"status\": \"RESOLVED\",\n  \"mode\": \"incident\",\n  \"metadata\": {\n    \"proscalar_event_code\": \"{{ $json.eventCode }}\",\n    \"proscalar_event_source_id\": \"{{ $json.eventSourceId }}\",\n    \"proscalar_event_point_id\": \"{{ $json.eventPointId }}\",\n    \"proscalar_event_timestamp\": \"{{ $json.eventTimestamp }}\",\n    \"is_resolution\": true,\n    \"source\": \"proscalar_n8n_pipeline\"\n  }\n}",
         "options": {}
       },
       "id": "node-http-resolve-point",
@@ -236,13 +236,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.99.32.54:13000/api/proscalar/webhook",
+        "url": "http://10.99.32.54:13000/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpwcm9zY2FsYXJfc2VjdXJlX3Bhc3NfMTIz"
+              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
             },
             {
               "name": "Content-Type",
@@ -252,7 +252,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"type\": \"alarm.publish\",\n  \"data\": {\n    \"alarmGroupId\": \"{{ $json.alarmGroupId }}\",\n    \"groupEventCode\": \"{{ $json.groupEventCode }}\",\n    \"eventTimestamp\": \"{{ $json.eventTimestamp }}\"\n  }\n}",
+        "jsonBody": "={\n  \"incidentType\": \"{{ $json.incidentType }}\",\n  \"deviceName\": \"{{ $json.deviceName }}\",\n  \"title\": \"{{ $json.title }}\",\n  \"severity\": \"low\",\n  \"site\": \"Taylor's University\",\n  \"preResolved\": true,\n  \"status\": \"RESOLVED\",\n  \"mode\": \"incident\",\n  \"metadata\": {\n    \"proscalar_alarm_group_id\": \"{{ $json.alarmGroupId }}\",\n    \"proscalar_group_code\": \"{{ $json.groupEventCode }}\",\n    \"proscalar_event_timestamp\": \"{{ $json.eventTimestamp }}\",\n    \"is_resolution\": true,\n    \"source\": \"proscalar_n8n_pipeline\"\n  }\n}",
         "options": {}
       },
       "id": "node-http-resolve-group",
