@@ -637,13 +637,12 @@ The Option C integration is fully implemented and operational in this repository
 | **Kong Setup (Bash)** | [`apigw/scripts/setup_proscalar_n8n.sh`](file:///c:/Projects/cde/apigw/scripts/setup_proscalar_n8n.sh) | Linux / CI-CD equivalent setup script |
 | **Vendor API Specification**| [`docs/proscalar_kong_api_integration_guide.md`](file:///c:/Projects/cde/docs/proscalar_kong_api_integration_guide.md) | Official external vendor & developer integration guide for the 6 webhook calls |
 | **n8n Workflow Definition** | [`n8n/workflows/proscalar_ingestion_workflow.json`](file:///c:/Projects/cde/n8n/workflows/proscalar_ingestion_workflow.json) | Complete exportable visual workflow with event/alarm branching and classification |
-| **Windows curl Suite (Batch/CMD)** | [`apigw/scripts/test_proscalar_curl.bat`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_curl.bat) | Windows 1-click Command Prompt test runner using native `curl.exe` |
-| **Windows curl Suite (PowerShell)**| [`apigw/scripts/test_proscalar_curl.ps1`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_curl.ps1) | Windows PowerShell test runner using native `curl.exe` with colored output |
+| **Verification Suite (PowerShell)**| [`apigw/scripts/test_proscalar_n8n.ps1`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.ps1) | Automated 5-test verification suite using PowerShell native HTTP client |
+| **Verification Suite (Batch/CMD)**  | [`apigw/scripts/test_proscalar_n8n.bat`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.bat) | 1-Click Windows Command Prompt test runner |
+| **Verification Suite (Bash)**       | [`apigw/scripts/test_proscalar_n8n.sh`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.sh) | Test suite for Linux / macOS / Git Bash |
 | **Postman 6-Call Runner (Batch)** | [`apigw/scripts/test_imops_proscalar_collection.bat`](file:///c:/Projects/cde/apigw/scripts/test_imops_proscalar_collection.bat) | 1-Click Windows batch runner for all 6 requests in `imops_proscalar.json` |
 | **Postman 6-Call Runner (PS1)**   | [`apigw/scripts/test_imops_proscalar_collection.ps1`](file:///c:/Projects/cde/apigw/scripts/test_imops_proscalar_collection.ps1) | PowerShell test runner for individual or batch testing of `imops_proscalar.json` |
 | **Payload Fixtures** | [`apigw/scripts/fixtures/`](file:///c:/Projects/cde/apigw/scripts/fixtures/) | Standalone test JSON payloads (`event_5002.json`, `event_4000.json`, `alarm_12008.json`, `ping.json`) |
-| **Verification Suite (PowerShell)**| [`apigw/scripts/test_proscalar_n8n.ps1`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.ps1) | Invoke-RestMethod test runner for PowerShell |
-| **Verification Suite (Bash)** | [`apigw/scripts/test_proscalar_n8n.sh`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.sh) | cURL-based test suite for Linux / Git Bash |
 
 ---
 
@@ -728,29 +727,142 @@ docker restart n8n-server
 
 ### 8.3 Verification & Testing
 
-#### Method A: Automated Test Suite (1-Click)
+Two official test suites are provided to verify the Proscalar $\rightarrow$ Kong $\rightarrow$ n8n $\rightarrow$ iMOPS pipeline:
 
-Run the verification test suite on Windows using native `curl.exe`:
+---
 
-* **Option 1: Windows Command Prompt (CMD) or Double-Click Batch File:**
-  ```cmd
-  c:\Projects\cde\apigw\scripts\test_proscalar_curl.bat
-  ```
-* **Option 2: Windows PowerShell (using native `curl.exe`):**
-  ```powershell
-  powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_proscalar_curl.ps1
-  ```
-* **Option 3: Linux / Git Bash / macOS:**
-  ```bash
-  bash c:/Projects/cde/apigw/scripts/test_proscalar_n8n.sh
-  ```
+#### Test Suite 1: Automated Option C Infrastructure Verification (`test_proscalar_n8n`)
 
-This automated suite tests:
-- **Test 1:** Unauthorized Rejection (`HTTP 401 Unauthorized` directly from Kong edge).
-- **Test 2:** Active Point Alert (`Code 5002 - Door Forced Open` -> incident created, Exec ID returned).
-- **Test 3:** IDLE Auto-Resolution (`Code 4000 - Reader Tamper IDLE` -> incident resolved).
-- **Test 4:** Alarm Group Safety Event (`Code 12008 with FIRE Zone` -> CRITICAL incident).
-- **Test 5:** Gateway Rate Limiting (`120 req/min` threshold throttled with `HTTP 429`).
+* **Scripts:**
+  * PowerShell: [`apigw/scripts/test_proscalar_n8n.ps1`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.ps1)
+  * Batch / CMD: [`apigw/scripts/test_proscalar_n8n.bat`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.bat)
+  * Linux / macOS Bash: [`apigw/scripts/test_proscalar_n8n.sh`](file:///c:/Projects/cde/apigw/scripts/test_proscalar_n8n.sh)
+* **Purpose:** Validates edge perimeter security, rate limiting policies, and live dynamic payload delivery.
+* **Checks Executed:**
+  1. **Unauthorized Rejection:** Kong blocks unauthenticated calls with `HTTP 401 Unauthorized`.
+  2. **Active Point Alert (Code 5002 - Door Forced Open):** Ingests live payload, routes through n8n, and dispatches to `/api/incidents/monitor`.
+  3. **Auto-Resolution IDLE Event (Code 4000 - Reader Tamper IDLE):** Resolves open incident in iMOPS.
+  4. **Alarm Group Safety Event (Code 12008 with FIRE Zone):** Evaluates multi-zone fire rule, raises incident to `CRITICAL`.
+  5. **Rate Limiting Burst:** Rapidly fires 125 requests to verify edge throttling (`HTTP 429 Too Many Requests`).
+
+##### How to Run:
+```powershell
+# Windows PowerShell:
+cd c:\Projects\cde\apigw\scripts
+.\test_proscalar_n8n.ps1
+
+# Windows CMD (1-Click):
+cd c:\Projects\cde\apigw\scripts
+test_proscalar_n8n.bat
+
+# Linux / Git Bash / macOS:
+cd apigw/scripts
+./test_proscalar_n8n.sh http://localhost:8088
+
+# Remote / Target Host Override:
+.\test_proscalar_n8n.ps1 -GatewayUrl "http://10.99.32.55:8088"
+```
+
+##### Verified Output:
+```text
+====================================================
+🧪 Running Proscalar Option C (Kong + n8n) Test Suite
+   Endpoint: http://localhost:8088/api/proscalar/webhook
+====================================================
+
+[Test 1/5] Testing Unauthorized Request (Expect HTTP 401)...
+✅ PASSED: Kong edge rejected unauthorized request (HTTP 401 Unauthorized).
+
+[Test 2/5] Testing Active Point Alert (Code 5002 - Door Forced Open)...
+✅ PASSED: Active event ingested and processed by n8n! (Execution ID: 645)
+
+[Test 3/5] Testing IDLE Auto-Resolution Event (Code 4000 - Reader Tamper IDLE)...
+✅ PASSED: IDLE event processed and resolved by pipeline! (Execution ID: 646)
+
+[Test 4/5] Testing Alarm Group Safety Event (FIRE Zone Priority)...
+✅ PASSED: Multi-zone Fire group alarm ingested as CRITICAL! (Execution ID: 647)
+
+[Test 5/5] Testing Gateway Rate Limiting Policy (120 req/min limit)...
+   Sending rapid burst of requests...
+✅ PASSED: Kong rate limiting enforced after 118 requests (HTTP 429 Too Many Requests).
+
+====================================================
+🎉 Proscalar Option C Test Suite Finished!
+====================================================
+```
+
+---
+
+#### Test Suite 2: Full 6-Scenario Vendor Payload Test Runner (`test_imops_proscalar_collection`)
+
+* **Scripts:**
+  * PowerShell: [`apigw/scripts/test_imops_proscalar_collection.ps1`](file:///c:/Projects/cde/apigw/scripts/test_imops_proscalar_collection.ps1)
+  * Batch / CMD: [`apigw/scripts/test_imops_proscalar_collection.bat`](file:///c:/Projects/cde/apigw/scripts/test_imops_proscalar_collection.bat)
+* **Purpose:** Sends the exact 6 vendor webhook payloads from `imops_proscalar.json` to verify business logic, state handling, and iMOPS dashboard cards.
+
+##### The 6 Scenarios Tested:
+| # | Event Code | Event Type | Description | Expected Outcome |
+| :-: | :--- | :--- | :--- | :--- |
+| **1** | `5002` | `event.publish` | **Door Forced Open** | High Severity incident logged in iMOPS |
+| **2** | `4001` | `event.publish` | **Reader Tamper** | High Severity hardware tamper incident logged |
+| **3** | `4000` | `event.publish` | **Reader Tamper IDLE** | Auto-resolves open Reader Tamper incident |
+| **4** | `12008` | `alarm.publish` | **Fire Alarm Group** | Evaluates FIRE zone $\rightarrow$ Escalates to `CRITICAL` |
+| **5** | `1000` | `event.publish` | **AC Power Failure** | High Severity hardware power failure logged |
+| **6** | `5014` | `event.publish` | **Emergency Door Release** | Physical safety exit breakglass $\rightarrow$ `CRITICAL` incident |
+
+##### How to Run:
+```powershell
+# Run all 6 scenarios sequentially (PowerShell):
+cd c:\Projects\cde\apigw\scripts
+.\test_imops_proscalar_collection.ps1
+
+# Run all 6 scenarios (CMD / 1-Click Batch):
+cd c:\Projects\cde\apigw\scripts
+test_imops_proscalar_collection.bat
+
+# Run an individual scenario (e.g. Scenario 4 - Fire Alarm):
+.\test_imops_proscalar_collection.ps1 -Scenario 4
+
+# Run against remote gateway:
+.\test_imops_proscalar_collection.ps1 -GatewayUrl "http://10.99.32.55:8088"
+```
+
+##### Verified Output:
+```text
+====================================================
+Proscalar Ingress Test Suite (imops_proscalar.json)
+Endpoint:   http://localhost:8088/api/proscalar/webhook
+Target:     Kong Edge Gateway (Port 8088)
+====================================================
+
+----------------------------------------------------
+SENDING: 1. Door Forced Open (Active Access Alarm)
+Event Code: 5002 -> Status: [PASSED] HTTP 200 OK (Exec ID: 911)
+
+----------------------------------------------------
+SENDING: 2. Reader Tamper (Active Tamper Alarm)
+Event Code: 4001 -> Status: [PASSED] HTTP 200 OK (Exec ID: 912)
+
+----------------------------------------------------
+SENDING: 3. Reader Tamper Idle (Auto-Resolve Code 4001)
+Event Code: 4000 -> Status: [PASSED] HTTP 200 OK (Exec ID: 913)
+
+----------------------------------------------------
+SENDING: 4. Fire Alarm Group (Multi-Zone Fire Aggregation)
+Event Code: 12008 -> Status: [PASSED] HTTP 200 OK (Exec ID: 914)
+
+----------------------------------------------------
+SENDING: 5. AC Power Failure (Hardware Alarm)
+Event Code: 1000 -> Status: [PASSED] HTTP 200 OK (Exec ID: 915)
+
+----------------------------------------------------
+SENDING: 6. Emergency Door Release (Device-Level Safety Button)
+Event Code: 5014 -> Status: [PASSED] HTTP 200 OK (Exec ID: 916)
+
+====================================================
+Finished! View executions at https://localhost:5678
+====================================================
+```
 
 ---
 

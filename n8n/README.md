@@ -111,6 +111,24 @@ curl -i -X PATCH "http://localhost:8001/services/imops-proscalar-n8n-service" \
 
 ---
 
+### 5. Verification & Testing
+
+Two official test suites in `apigw/scripts/` verify the pipeline:
+
+1. **Automated Option C Infrastructure Verification (5 checks):**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File apigw/scripts/test_proscalar_n8n.ps1
+   ```
+   *(Or in CMD: `apigw\scripts\test_proscalar_n8n.bat`)*
+
+2. **Full 6-Scenario Vendor Payload Test Runner (All 6 scenarios):**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File apigw/scripts/test_imops_proscalar_collection.ps1
+   ```
+   *(Or in CMD: `apigw\scripts\test_imops_proscalar_collection.bat`)*
+
+---
+
 ## Directory Structure
 
 ```
