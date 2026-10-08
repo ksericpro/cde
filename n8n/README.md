@@ -74,18 +74,28 @@ Expected output:
 The unified workflow is located in `workflows/proscalar_ingestion_workflow.json`. It dynamically resolves the destination iMOPS API via the `BACKEND_API` environment variable configured in `.env` (or `.env.taylor`).
 
 #### Method A: Via Web UI
-1. Open **`https://<N8N_HOST>:5678`** in browser.
-2. Go to **Workflows** $\rightarrow$ Click `...` menu (top right) $\rightarrow$ **Import from File**.
-3. Select `workflows/proscalar_ingestion_workflow.json`.
-4. Turn on the **Active** toggle (top-right, green) and click **Save**.
+- **Fastest Option (Canvas Paste):** Open `workflows/proscalar_ingestion_workflow.json`, copy the entire contents (`Ctrl + A`, `Ctrl + C`), click anywhere on the n8n canvas at `https://<N8N_HOST>:5678`, and press **`Ctrl + V`**. Click **Save**.
+- **File Upload:** Go to **Workflows** $\rightarrow$ Click `...` menu (top right) $\rightarrow$ **Import from File** $\rightarrow$ Select `workflows/proscalar_ingestion_workflow.json`.
+- Turn on the **Active** toggle (top-right, green) and click **Save**.
+- Or open the pre-imported production workflow directly: **`https://<N8N_HOST>:5678/workflow/L0fSnJ8zdJUbcqEf`**.
 
-#### Method B: Via CLI
+#### Method B: Via Docker CLI
 ```bash
+# 1. Copy workflow file into container
 docker cp workflows/proscalar_ingestion_workflow.json n8n-server:/tmp/workflow.json
+
+# 2. Import into n8n database
 docker exec n8n-server n8n import:workflow --input=/tmp/workflow.json
-docker exec n8n-server n8n publish:workflow --id=proscalar-pipeline-v1
+
+# 3. Publish/Activate the workflow (Current ID: L0fSnJ8zdJUbcqEf)
+docker exec n8n-server n8n publish:workflow --id=L0fSnJ8zdJUbcqEf
+
+# 4. Restart container to register active webhooks
 docker restart n8n-server
 ```
+
+> For full details, troubleshooting tips, and common import gotchas, see [docs/workflow_import_and_management_guide.md](docs/workflow_import_and_management_guide.md).
+
 
 ---
 
