@@ -649,19 +649,78 @@ The Option C integration is fully implemented and operational in this repository
 
 ### 8.2 Deployment & Provisioning Instructions
 
-#### Step 1: Provision Kong Perimeter Ingress
-Run the automated provisioning script to register the Service, Route, and Edge Security Plugins on Kong:
-```powershell
-powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\setup_proscalar_n8n.ps1
-```
-*(Or via Bash: `bash c:/Projects/cde/apigw/scripts/setup_proscalar_n8n.sh`)*
+#### Step 1: Provision / Configure Kong Gateway Service
 
-#### Step 2: Publish n8n Pipeline
-The workflow is stored in `n8n/workflows/proscalar_ingestion_workflow.json` and activated inside the n8n container:
+Kong Gateway receives incoming vendor webhooks on port `8088` and forwards them to n8n's webhook ingress on port `5678`.
+
+##### Method A: Via Kong Manager UI (`http://<KONG_HOST>:8002`)
+1. Open **`http://<KONG_HOST>:8002`** (e.g. `http://10.99.32.55:8002`) in your browser.
+2. In the left sidebar, click **Gateway Services**.
+3. Click **`imops-proscalar-n8n-service`** (or click **New Gateway Service** if not yet created).
+4. Click the blue **Edit** button in the top right.
+5. In the **Service Endpoint** section, configure the target n8n instance:
+   - **Protocol:** `http` *(recommended when Kong and n8n share `cde-network`)*
+   - **Host:** `n8n-server` *(or `10.99.32.55` if connecting over external LAN IP)*
+   - **Port:** `5678`
+   - **Path:** `/webhook/proscalar`
+   > [!NOTE]
+   > If using `https` with LAN IP `10.99.32.55`, click **View Advanced Fields**, scroll down, and ensure **TLS Verify** is **unchecked** (to allow self-signed certificates).
+6. Click **Save**.
+7. **Verify Route:** Click the **Routes** tab $\rightarrow$ **`proscalar-webhook-route`** $\rightarrow$ verify path is `/api/proscalar/webhook` and methods include `POST`.
+8. The external endpoint for webhook callers is:
+   ```text
+   POST http://<KONG_HOST>:8088/api/proscalar/webhook
+   ```
+
+##### Method B: Via CLI Script or cURL
+Run the automated script to provision the service, route, credentials, and plugins:
 ```bash
-docker cp c:\Projects\cde\n8n\workflows\proscalar_ingestion_workflow.json n8n-server:/tmp/proscalar_ingestion_workflow.json
-docker exec n8n-server n8n import:workflow --input=/tmp/proscalar_ingestion_workflow.json
+# In Linux / Bash:
+bash c:/Projects/cde/apigw/scripts/setup_proscalar_n8n.sh http://n8n-server:5678/webhook/proscalar
+
+# Or Windows PowerShell:
+powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\setup_proscalar_n8n.ps1 -N8nUpstreamUrl "http://n8n-server:5678/webhook/proscalar"
+```
+Or update an existing service directly via Admin API:
+```bash
+curl -i -X PATCH "http://localhost:8001/services/imops-proscalar-n8n-service" \
+  -H "Content-Type: application/json" \
+  -d '{"protocol":"http","host":"n8n-server","port":5678,"path":"/webhook/proscalar"}'
+```
+
+---
+
+#### Step 2: Import & Publish n8n Pipeline
+
+The pre-configured Taylor's University workflow targets iMOPS at `http://10.99.32.54:13000`.
+
+##### Method A: Via n8n Web UI (`https://<N8N_HOST>:5678`)
+1. Open **`https://10.99.32.55:5678`** in your browser (accept the self-signed SSL certificate warning).
+2. Click **Workflows** in the left navigation sidebar.
+3. In the upper-right corner, click the **`...`** (three dots) menu button $\rightarrow$ select **Import from File**.
+4. Select the Taylor workflow file:
+   - **[`n8n/workflows/proscalar_ingestion_workflow_taylor.json`](file:///c:/Projects/cde/n8n/workflows/proscalar_ingestion_workflow_taylor.json)**
+5. Once imported, confirm the 4 HTTP Request nodes target `http://10.99.32.54:13000`:
+   - `Create Point Incident` $\rightarrow$ `http://10.99.32.54:13000/api/incidents/monitor`
+   - `Resolve Point Incident` $\rightarrow$ `http://10.99.32.54:13000/api/proscalar/webhook`
+   - `Create Group Incident` $\rightarrow$ `http://10.99.32.54:13000/api/incidents/monitor`
+   - `Resolve Group Incident` $\rightarrow$ `http://10.99.32.54:13000/api/proscalar/webhook`
+6. Toggle the **Active** switch in the top-right corner to **ON (green)**.
+7. Click **Save** (`Ctrl + S`).
+
+##### Method B: Via Terminal CLI
+Copy the workflow into the running container and publish:
+```bash
+# 1. Copy JSON into the container
+docker cp n8n/workflows/proscalar_ingestion_workflow_taylor.json n8n-server:/tmp/workflow.json
+
+# 2. Import into n8n SQLite database
+docker exec n8n-server n8n import:workflow --input=/tmp/workflow.json
+
+# 3. Publish and activate the workflow
 docker exec n8n-server n8n publish:workflow --id=proscalar-pipeline-v1
+
+# 4. Restart container to register active webhook listener
 docker restart n8n-server
 ```
 

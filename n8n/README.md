@@ -69,6 +69,46 @@ Expected output:
 {"status":"ok"}
 ```
 
+### 3. Import Workflow (Taylor's University)
+
+The workflow for Taylor's University (`10.99.32.54:13000`) is located in `workflows/proscalar_ingestion_workflow_taylor.json`.
+
+#### Method A: Via Web UI
+1. Open **`https://<N8N_HOST>:5678`** in browser.
+2. Go to **Workflows** $\rightarrow$ Click `...` menu (top right) $\rightarrow$ **Import from File**.
+3. Select `workflows/proscalar_ingestion_workflow_taylor.json`.
+4. Turn on the **Active** toggle (top-right, green) and click **Save**.
+
+#### Method B: Via CLI
+```bash
+docker cp workflows/proscalar_ingestion_workflow_taylor.json n8n-server:/tmp/workflow.json
+docker exec n8n-server n8n import:workflow --input=/tmp/workflow.json
+docker exec n8n-server n8n publish:workflow --id=proscalar-pipeline-v1
+docker restart n8n-server
+```
+
+---
+
+### 4. Configure Kong Gateway Service to Target n8n
+
+Kong forwards incoming webhooks (`:8088/api/proscalar/webhook`) to n8n (`:5678/webhook/proscalar`).
+
+#### Via Kong Manager UI (`http://<KONG_HOST>:8002`):
+1. Navigate to **Gateway Services** $\rightarrow$ click **`imops-proscalar-n8n-service`** $\rightarrow$ click **Edit**.
+2. Set Service Endpoint:
+   - **Protocol:** `http`
+   - **Host:** `n8n-server` *(or `10.99.32.55`)*
+   - **Port:** `5678`
+   - **Path:** `/webhook/proscalar`
+3. Click **Save**.
+
+#### Via CLI:
+```bash
+curl -i -X PATCH "http://localhost:8001/services/imops-proscalar-n8n-service" \
+  -H "Content-Type: application/json" \
+  -d '{"protocol":"http","host":"n8n-server","port":5678,"path":"/webhook/proscalar"}'
+```
+
 ---
 
 ## Directory Structure
