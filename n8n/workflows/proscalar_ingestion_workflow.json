@@ -1,5 +1,5 @@
 {
-  "id": "proscalar-pipeline-v1",
+  "id": "L0fSnJ8zdJUbcqEf",
   "name": "Proscalar Webhook Ingestion Pipeline (Option C)",
   "active": true,
   "nodes": [
@@ -113,13 +113,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
+              "value": "={{ $env.PROSCALAR_TO_IMOPS_AUTH || $env.BACKEND_AUTH || 'Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg==' }}"
             },
             {
               "name": "Content-Type",
@@ -141,13 +141,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
+              "value": "={{ $env.PROSCALAR_TO_IMOPS_AUTH || $env.BACKEND_AUTH || 'Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg==' }}"
             },
             {
               "name": "Content-Type",
@@ -208,13 +208,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
+              "value": "={{ $env.PROSCALAR_TO_IMOPS_AUTH || $env.BACKEND_AUTH || 'Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg==' }}"
             },
             {
               "name": "Content-Type",
@@ -236,13 +236,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
+              "value": "={{ $env.PROSCALAR_TO_IMOPS_AUTH || $env.BACKEND_AUTH || 'Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg==' }}"
             },
             {
               "name": "Content-Type",
