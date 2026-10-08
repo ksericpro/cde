@@ -119,7 +119,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
+              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
             },
             {
               "name": "Content-Type",
@@ -147,7 +147,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
+              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
             },
             {
               "name": "Content-Type",
@@ -214,7 +214,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
+              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
             },
             {
               "name": "Content-Type",
@@ -242,7 +242,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Basic dml6emlvQGltb3BzLmxvY2FsOnhBSkhra203bTNWNU1odEYweEdN"
+              "value": "={{ $env.BACKEND_AUTH || 'Basic YWRtaW5AaW1vcHMubG9jYWw6YWRtaW4xMjM=' }}"
             },
             {
               "name": "Content-Type",
