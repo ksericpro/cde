@@ -90,6 +90,44 @@ n8n/
 └── n8n_data/                       # Persistent database & workflow configuration
 ```
 
+## Troubleshooting & Encryption Key Management
+
+For full details, see the dedicated [Troubleshooting Runbook](file:///c:/Projects/cde/n8n/docs/troubleshooting_encryption_keys.md).
+
+### 1. "Mismatching encryption keys"
+**Symptom:** `Error: Mismatching encryption keys. The encryption key in the settings file /root/.n8n/config does not match the N8N_ENCRYPTION_KEY env var.`  
+**Cause:** `n8n_data/config` has a different key than `N8N_ENCRYPTION_KEY` in `.env`.  
+**Resolution:**
+```bash
+# Option A: Delete config and let n8n use the key from .env
+rm -f n8n_data/config
+docker compose down
+docker compose up -d
+
+# Option B: Set N8N_ENCRYPTION_KEY in .env to match n8n_data/config:
+# N8N_ENCRYPTION_KEY=cde-n8n-secret-encryption-key-2026-cde-pipeline
+```
+
+### 2. "Deployment key 'signing.hmac' cannot be read"
+**Symptom:** `Error: Deployment key 'signing.hmac' cannot be read with this instance encryption key`  
+**Cause:** `database.sqlite` was encrypted with an older/different encryption key than the current one.  
+**Resolution (Clean DB Reset for Fresh Setup):**
+```bash
+docker compose down
+rm -f n8n_data/database.sqlite*
+rm -f n8n_data/config
+docker compose up -d
+```
+*(After restart, complete owner setup at `https://<HOST>:5678` and import workflows from `n8n/workflows/`)*.
+
+### 3. Deploying to Remote Server IP (e.g., `10.99.32.55`)
+In `n8n/.env`:
+```env
+N8N_HOST=10.99.32.55
+N8N_WEBHOOK_URL=https://10.99.32.55:5678/
+```
+Restart with `docker compose down && docker compose up -d`. Access the UI at `https://10.99.32.55:5678`.
+
 ---
 
 ## Reset & Utility Commands
@@ -107,3 +145,4 @@ docker compose down
 # Remove-Item -Recurse -Force ./n8n_data/*
 docker compose up -d
 ```
+

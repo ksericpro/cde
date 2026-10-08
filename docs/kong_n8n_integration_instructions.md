@@ -893,6 +893,8 @@ The n8n visual canvas allows real-time inspection of incoming webhook dispatches
 | **Browser certificate warning on port 5678** | Local self-signed SSL certificate used by `n8n-proxy` | Click **Advanced** $\rightarrow$ **Proceed to localhost (unsafe)**. |
 | **`HTTP 401 Unauthorized` on webhook call** | Missing or incorrect Basic Auth credentials | Provide Basic Auth header (`proscalar@gmail.com` : `<password>`). |
 | **Workflow not triggering in n8n** | Workflow is inactive / not published | Run `docker exec n8n-server n8n publish:workflow --id=proscalar-pipeline-v1` or toggle **Active** switch in the n8n UI canvas. |
+| **`Mismatching encryption keys`** | `N8N_ENCRYPTION_KEY` in `.env` doesn't match `n8n_data/config` | Delete `n8n_data/config` and restart, or update `N8N_ENCRYPTION_KEY` in `.env` to match. |
+| **`Deployment key 'signing.hmac' cannot be read`** | Database was created with a different encryption key | Reset database for clean install: `docker compose down && rm -f n8n_data/database.sqlite* n8n_data/config && docker compose up -d` |
 
 ---
 
