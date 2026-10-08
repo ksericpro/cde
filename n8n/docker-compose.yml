@@ -27,7 +27,11 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
       - EXECUTIONS_DATA_PRUNE_MAX_COUNT=10000
-      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      # Target Backend API Integration (Option C)
+      - BACKEND_API=${BACKEND_API:-http://host.docker.internal:13000}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${N8N_DATA_PATH:-./n8n_data}:/root/.n8n
     networks:

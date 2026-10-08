@@ -113,7 +113,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.99.32.54:13000/api/incidents/monitor",
+        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -141,7 +141,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.99.32.54:13000/api/incidents/monitor",
+        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -208,7 +208,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.99.32.54:13000/api/incidents/monitor",
+        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -236,7 +236,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.99.32.54:13000/api/incidents/monitor",
+        "url": "={{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

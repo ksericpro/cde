@@ -698,13 +698,13 @@ The pre-configured Taylor's University workflow targets iMOPS at `http://10.99.3
 1. Open **`https://10.99.32.55:5678`** in your browser (accept the self-signed SSL certificate warning).
 2. Click **Workflows** in the left navigation sidebar.
 3. In the upper-right corner, click the **`...`** (three dots) menu button $\rightarrow$ select **Import from File**.
-4. Select the Taylor workflow file:
-   - **[`n8n/workflows/proscalar_ingestion_workflow_taylor.json`](file:///c:/Projects/cde/n8n/workflows/proscalar_ingestion_workflow_taylor.json)**
-5. Once imported, confirm all 4 HTTP Request nodes target `POST http://10.99.32.54:13000/api/incidents/monitor`:
-   - `Create Point Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor`
-   - `Resolve Point Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor` (`status: "RESOLVED"`)
-   - `Create Group Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor`
-   - `Resolve Group Incident` $\rightarrow$ `POST http://10.99.32.54:13000/api/incidents/monitor` (`status: "RESOLVED"`)
+4. Select the unified workflow file:
+   - **[`n8n/workflows/proscalar_ingestion_workflow.json`](file:///c:/Projects/cde/n8n/workflows/proscalar_ingestion_workflow.json)**
+5. Once imported, confirm all 4 HTTP Request nodes target `POST {{ $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/incidents/monitor`:
+   - `Create Point Incident` $\rightarrow$ `POST {{BACKEND_API}}/api/incidents/monitor`
+   - `Resolve Point Incident` $\rightarrow$ `POST {{BACKEND_API}}/api/incidents/monitor` (`status: "RESOLVED"`)
+   - `Create Group Incident` $\rightarrow$ `POST {{BACKEND_API}}/api/incidents/monitor`
+   - `Resolve Group Incident` $\rightarrow$ `POST {{BACKEND_API}}/api/incidents/monitor` (`status: "RESOLVED"`)
 6. Toggle the **Active** switch in the top-right corner to **ON (green)**.
 7. Click **Save** (`Ctrl + S`).
 
@@ -712,7 +712,7 @@ The pre-configured Taylor's University workflow targets iMOPS at `http://10.99.3
 Copy the workflow into the running container and publish:
 ```bash
 # 1. Copy JSON into the container
-docker cp n8n/workflows/proscalar_ingestion_workflow_taylor.json n8n-server:/tmp/workflow.json
+docker cp n8n/workflows/proscalar_ingestion_workflow.json n8n-server:/tmp/workflow.json
 
 # 2. Import into n8n SQLite database
 docker exec n8n-server n8n import:workflow --input=/tmp/workflow.json

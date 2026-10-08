@@ -69,19 +69,19 @@ Expected output:
 {"status":"ok"}
 ```
 
-### 3. Import Workflow (Taylor's University)
+### 3. Import Workflow
 
-The workflow for Taylor's University (`10.99.32.54:13000`) is located in `workflows/proscalar_ingestion_workflow_taylor.json`.
+The unified workflow is located in `workflows/proscalar_ingestion_workflow.json`. It dynamically resolves the destination iMOPS API via the `BACKEND_API` environment variable configured in `.env` (or `.env.taylor`).
 
 #### Method A: Via Web UI
 1. Open **`https://<N8N_HOST>:5678`** in browser.
 2. Go to **Workflows** $\rightarrow$ Click `...` menu (top right) $\rightarrow$ **Import from File**.
-3. Select `workflows/proscalar_ingestion_workflow_taylor.json`.
+3. Select `workflows/proscalar_ingestion_workflow.json`.
 4. Turn on the **Active** toggle (top-right, green) and click **Save**.
 
 #### Method B: Via CLI
 ```bash
-docker cp workflows/proscalar_ingestion_workflow_taylor.json n8n-server:/tmp/workflow.json
+docker cp workflows/proscalar_ingestion_workflow.json n8n-server:/tmp/workflow.json
 docker exec n8n-server n8n import:workflow --input=/tmp/workflow.json
 docker exec n8n-server n8n publish:workflow --id=proscalar-pipeline-v1
 docker restart n8n-server
