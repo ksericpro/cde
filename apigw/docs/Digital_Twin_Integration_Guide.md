@@ -38,7 +38,65 @@ To deliver high-fidelity, interactive 3D Digital Twins without data drift or net
 
 ---
 
-## 2. Integration Workflow: Step-by-Step Sequence
+## 2. Kong Gateway Routing & Upstream iMOPS Mapping Rules
+
+Kong Gateway routes external Digital Twin requests to internal iMOPS backend services according to the following mapping definitions, path transformation rules, and perimeter security policies:
+
+### 2.1 Route Configuration & Path Transformation Rules
+
+| Kong Route Name | Gateway Ingress Path | Strip Path (`strip_path`) | Target Kong Service | Target Upstream Backend Base URL | Upstream Protocol |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `twin-visualization-route` | `/api/visualization` | `false` | `imops-twin-rest-service` | `http://<IMOPS_HOST>:13000/api/visualization` | HTTP/1.1 REST |
+| `twin-auth-route` | `/api/auth` | `false` | `imops-twin-rest-service` | `http://<IMOPS_HOST>:13000/api/auth` | HTTP/1.1 REST |
+| `twin-ws-route` | `/ws` | `false` | `imops-twin-realtime-service` | `http://<IMOPS_HOST>:13000/ws` | RFC 6455 WebSocket |
+| `twin-socketio-route` | `/socket.io` | `false` | `imops-twin-realtime-service` | `http://<IMOPS_HOST>:13000/socket.io` | Engine.IO / Socket.IO |
+
+> [!IMPORTANT]
+> **Preserved Path Prefix (`strip_path: false`):**
+> Because `strip_path` is explicitly set to `false`, Kong Gateway does **not** truncate or modify the incoming URI prefix. Every request sent to `http://localhost:8088/api/visualization/<subpath>` forwards with a 1:1 path match directly to `http://<IMOPS_HOST>:13000/api/visualization/<subpath>`.
+
+### 2.2 Complete Endpoint Mapping Directory (`/api/visualization/*`)
+
+The `/api/visualization` ingress path exposes all spatial hierarchy, telemetry, device health, and incident reconciliation endpoints required by 3D Digital Twin runtimes:
+
+| Category | HTTP Method | Gateway Ingress URL (`Port 8088`) | Target Upstream iMOPS Endpoint (`Port 13000`) | Query Parameters & Filters | Purpose / Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Site Discovery** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | *(None)* | Fetches all physical sites assigned to the authenticated user. |
+| **Spatial Tree** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `siteName=<NAME>&tree=true` | Loads complete 3D spatial hierarchy tree (buildings, floors, zones). |
+| **Site Buildings** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `siteId=<ID>` | Retrieves all buildings within a designated site ID. |
+| **Building Floors** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `buildingId=<ID>` | Retrieves all floors and levels within a designated building ID. |
+| **Floor Zones** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `floorId=<ID>` | Retrieves fine-grained zones and 3D bounding areas for a floor. |
+| **Incident Sync** | `GET` | `/api/visualization/incidents` | `/api/visualization/incidents` | `siteName=<NAME>&daysBack=365&page=1&limit=10` | Periodic reconciliation of active alarms and ticket tallies. |
+| **Incident Search** | `GET` | `/api/visualization/incidents` | `/api/visualization/incidents` | `siteId=<ID>` or `buildingId=<ID>` or `floorId=<ID>` | Filters incident lists by specific spatial boundary. |
+| **Incident Summary**| `GET` | `/api/visualization/incidents` | `/api/visualization/incidents` | `summary=true` | Returns incident counts (`total`, `active`, `attend_now`, `resolved`). |
+| **Equipment Inventory**| `GET` | `/api/visualization/equipment` | `/api/visualization/equipment` | `zoneId=<ID>&type=all&limit=100&page=1` | Lists IoT hardware, CCTV cameras, and sensors placed in a zone. |
+| **Device Health** | `GET` | `/api/visualization/device-health` | `/api/visualization/device-health` | *(Optional filters)* | Queries operational online/offline telemetry across edge devices. |
+| **Visualization SLA**| `GET` | `/api/visualization/sla` | `/api/visualization/sla` | `siteId=<ID>&daysBack=7` | Service Level Agreement response times and breach indicators. |
+| **Dashboard Telemetry**| `GET` | `/api/visualization/dashboard` | `/api/visualization/dashboard` | *(Optional date range)* | Aggregated operational KPI counters and sensor state distribution. |
+| **Guard Attendance**| `GET` | `/api/visualization/attendance` | `/api/visualization/attendance` | `siteId=<ID>` | Real-time security guard patrol check-ins and attendance records. |
+| **Security Summons**| `GET` | `/api/visualization/summons` | `/api/visualization/summons` | `siteId=<ID>` | Security violations, summons notices, and penalty tracking. |
+| **VA Detection** | `GET` | `/api/visualization/va-summary` | `/api/visualization/va-summary` | `siteId=<ID>` | Video Analytics aggregate alerts (crowding, loitering, intrusion). |
+| **Body-Worn Camera**| `GET` | `/api/visualization/bwc` | `/api/visualization/bwc` | `siteId=<ID>` | Live status and battery/connection telemetry of Body-Worn Cameras. |
+
+### 2.3 Authentication & Header Forwarding Rules
+
+1. **Perimeter Basic Auth Pass-Through (`hide_credentials: false`):**
+   - Kong Gateway validates the client Basic Auth credentials against the `vizzio-twin-consumer` at the network edge.
+   - Because `hide_credentials: false` is configured, Kong **preserves and forwards** the original `Authorization: Basic ...` header directly to the upstream iMOPS backend.
+   - Upstream iMOPS services validate the credentials against their native authentication store without requiring secondary token exchange.
+
+2. **Bearer Token Transparency:**
+   - Clients utilizing JWT session tokens can supply `Authorization: Bearer <TOKEN>`. Kong passes the `Authorization` header downstream transparently to the iMOPS upstream.
+
+3. **CORS & Preflight Handling:**
+   - Preflight `OPTIONS` requests are handled and responded to directly by Kong Gateway (`Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, `Access-Control-Allow-Headers: Authorization, Content-Type, apikey`).
+
+4. **Traffic Shaping & Rate Limiting:**
+   - Ingress requests are rate-limited to **120 requests/minute** per client to prevent spatial polling cycles from overwhelming upstream database queries.
+
+---
+
+## 3. Integration Workflow: Step-by-Step Sequence
 
 Follow this exact order when initializing the Digital Twin engine:
 
@@ -314,7 +372,7 @@ if (twinMemory.total !== dbTotal) {
 
 ---
 
-## 3. Drop-In Digital Twin Client SDK (JavaScript / TypeScript)
+## 4. Drop-In Digital Twin Client SDK (JavaScript / TypeScript)
 
 Here is the complete, production-tested client class implementing all the above steps:
 
@@ -480,7 +538,7 @@ export class DigitalTwinGatewayClient {
 
 ---
 
-## 4. Verification & Testing Matrix
+## 5. Verification & Testing Matrix
 
 Use these quick tests to verify each step of the integration pipeline:
 
@@ -493,7 +551,7 @@ Use these quick tests to verify each step of the integration pipeline:
 
 ---
 
-## 5. Visual Reference Breakdown: `twin_simulation.png`
+## 6. Visual Reference Breakdown: `twin_simulation.png`
 
 The bundled simulator screenshot demonstrates the end-to-end integration running against live Kong Gateway (`:8088`):
 
@@ -523,7 +581,7 @@ The bundled simulator screenshot demonstrates the end-to-end integration running
 
 ---
 
-## 6. Postman Resources & Artifacts
+## 7. Postman Resources & Artifacts
 
 All accompanying testing collections and environment files are available in the repository:
 * **Postman Collection:** [`apigw/postman/SOV_38ALT_VA_Triggers.postman_collection.json`](../postman/SOV_38ALT_VA_Triggers.postman_collection.json)

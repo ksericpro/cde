@@ -76,6 +76,43 @@ In browser runtimes (e.g. WebGL / Three.js), the native `new WebSocket(url)` API
   { "action": "AUTH", "username": "vizzio@imops.local", "password": "xAJHkkm7m3V5MhtF0xGM" }
   ```
 
+### 2.3 Gateway Routing & Upstream iMOPS Mapping Rules
+
+Kong Gateway routes external Digital Twin requests to internal iMOPS backend services according to the following mapping definitions, path transformation rules, and perimeter security policies:
+
+#### Route Configuration & Path Transformation Rules
+| Kong Route Name | Gateway Ingress Path | Strip Path (`strip_path`) | Target Kong Service | Target Upstream Backend Base URL | Upstream Protocol |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `twin-visualization-route` | `/api/visualization` | `false` | `imops-twin-rest-service` | `http://<IMOPS_HOST>:13000/api/visualization` | HTTP/1.1 REST |
+| `twin-auth-route` | `/api/auth` | `false` | `imops-twin-rest-service` | `http://<IMOPS_HOST>:13000/api/auth` | HTTP/1.1 REST |
+| `twin-ws-route` | `/ws` | `false` | `imops-twin-realtime-service` | `http://<IMOPS_HOST>:13000/ws` | RFC 6455 WebSocket |
+| `twin-socketio-route` | `/socket.io` | `false` | `imops-twin-realtime-service` | `http://<IMOPS_HOST>:13000/socket.io` | Engine.IO / Socket.IO |
+
+> [!IMPORTANT]
+> **Preserved Path Prefix (`strip_path: false`):**
+> Because `strip_path` is explicitly set to `false`, Kong Gateway does **not** truncate or modify the incoming URI prefix. Every request sent to `http://localhost:8088/api/visualization/<subpath>` forwards with a 1:1 path match directly to `http://<IMOPS_HOST>:13000/api/visualization/<subpath>`.
+
+#### Complete Endpoint Mapping Directory (`/api/visualization/*`)
+
+| Category | HTTP Method | Gateway Ingress URL (`Port 8088`) | Target Upstream iMOPS Endpoint (`Port 13000`) | Query Parameters & Filters | Purpose / Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Site Discovery** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | *(None)* | Fetches all physical sites assigned to the authenticated user. |
+| **Spatial Tree** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `siteName=<NAME>&tree=true` | Loads complete 3D spatial hierarchy tree (buildings, floors, zones). |
+| **Site Buildings** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `siteId=<ID>` | Retrieves all buildings within a designated site ID. |
+| **Building Floors** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `buildingId=<ID>` | Retrieves all floors and levels within a designated building ID. |
+| **Floor Zones** | `GET` | `/api/visualization/hierarchy` | `/api/visualization/hierarchy` | `floorId=<ID>` | Retrieves fine-grained zones and 3D bounding areas for a floor. |
+| **Incident Sync** | `GET` | `/api/visualization/incidents` | `/api/visualization/incidents` | `siteName=<NAME>&daysBack=365&page=1&limit=10` | Periodic reconciliation of active alarms and ticket tallies. |
+| **Incident Search** | `GET` | `/api/visualization/incidents` | `/api/visualization/incidents` | `siteId=<ID>` or `buildingId=<ID>` or `floorId=<ID>` | Filters incident lists by specific spatial boundary. |
+| **Incident Summary**| `GET` | `/api/visualization/incidents` | `/api/visualization/incidents` | `summary=true` | Returns incident counts (`total`, `active`, `attend_now`, `resolved`). |
+| **Equipment Inventory**| `GET` | `/api/visualization/equipment` | `/api/visualization/equipment` | `zoneId=<ID>&type=all&limit=100&page=1` | Lists IoT hardware, CCTV cameras, and sensors placed in a zone. |
+| **Device Health** | `GET` | `/api/visualization/device-health` | `/api/visualization/device-health` | *(Optional filters)* | Queries operational online/offline telemetry across edge devices. |
+| **Visualization SLA**| `GET` | `/api/visualization/sla` | `/api/visualization/sla` | `siteId=<ID>&daysBack=7` | Service Level Agreement response times and breach indicators. |
+| **Dashboard Telemetry**| `GET` | `/api/visualization/dashboard` | `/api/visualization/dashboard` | *(Optional date range)* | Aggregated operational KPI counters and sensor state distribution. |
+| **Guard Attendance**| `GET` | `/api/visualization/attendance` | `/api/visualization/attendance` | `siteId=<ID>` | Real-time security guard patrol check-ins and attendance records. |
+| **Security Summons**| `GET` | `/api/visualization/summons` | `/api/visualization/summons` | `siteId=<ID>` | Security violations, summons notices, and penalty tracking. |
+| **VA Detection** | `GET` | `/api/visualization/va-summary` | `/api/visualization/va-summary` | `siteId=<ID>` | Video Analytics aggregate alerts (crowding, loitering, intrusion). |
+| **Body-Worn Camera**| `GET` | `/api/visualization/bwc` | `/api/visualization/bwc` | `siteId=<ID>` | Live status and battery/connection telemetry of Body-Worn Cameras. |
+
 ---
 
 ## 3. Implemented Files & Assets
