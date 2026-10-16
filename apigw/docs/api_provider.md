@@ -7,6 +7,12 @@ I want kong gw to privide data for external to consume. Updating Digital Twins, 
 - Get Site Tree: {{BACKEND_API}}/api/visualization/hierarchy?siteName=SOV%20%40%2038ALT&tree=true
 
 - Get Incident of Site Name with Period and Page Limit: {{BACKEND_API}}/api/visualization/incidents?siteName=SOV%20%40%2038ALT&daysBack=365&page=1&limit=30
+  - **Kong Gateway Equivalent:** `http://localhost:8088/api/visualization/incidents?siteName=SOV%20%40%2038ALT&daysBack=365&page=1&limit=30`
+  - **Route:** `twin-visualization-route` (`strip_path: false`)
+  - **cURL Command:**
+    ```bash
+    curl.exe -i -X GET "http://localhost:8088/api/visualization/incidents?siteName=SOV%20%40%2038ALT&daysBack=365&page=1&limit=30" -u "vizzio@imops.local:xAJHkkm7m3V5MhtF0xGM"
+    ```
 
 - Get Site Tree with Site ID: {{BACKEND_API}}/api/visualization/hierarchy?siteId=6a9a86656ef76c2f8b374dd7
 
