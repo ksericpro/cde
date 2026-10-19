@@ -91,6 +91,7 @@ echo "$RESP_4" | grep -q '"success":true' && echo "✅ PASSED: Multi-zone Fire g
 
 # TEST 5: Rate Limiting & WAF Lockout Enforcement
 echo -e "\n[Test 5/5] Testing Gateway Rate Limiting & WAF Lockout Policy..."
+PAYLOAD_5002='{"type":"event.publish","timestamp":"2026-06-09T03:00:00.000Z","data":{"id":"burst-test","eventCode":"5002","message":"Burst Test"}}'
 RATE_LIMITED=0
 echo -n "   Sending rapid burst of requests (exceeding 30 req/10s threshold)..."
 for i in $(seq 1 40); do
