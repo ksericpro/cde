@@ -279,3 +279,61 @@ curl -X DELETE "http://localhost:8001/plugins/$PLUGIN_ID"
 ```
 The gateway immediately reverts to standard rate limiting without traffic interruption.
 
+---
+
+## 8. Customizing Thresholds, Windows, & Lockout Durations
+
+You can easily adjust the sensitivity of the rate limiter and the lockout duration to fit different environment requirements without redeploying the stack.
+
+### 8.1 Edit `waf_proscalar_ratelimit.lua`
+Open [apigw/scripts/waf_proscalar_ratelimit.lua](file:///c:/Projects/cde/apigw/scripts/waf_proscalar_ratelimit.lua#L42-L44) and modify the configuration block:
+
+```lua
+-- Configuration Thresholds Calibrated for Physical Security Webhooks
+local burst_window = 10   -- Counter window in seconds
+local burst_limit  = 30   -- Requests allowed per window (alarm-safe for multi-zone clusters)
+local lockout_ttl  = 60   -- Penalty lockout duration in seconds
+```
+
+### 8.2 Recommended Profiles
+
+| Profile | `burst_window` | `burst_limit` | `lockout_ttl` | Use Case |
+| :--- | :---: | :---: | :---: | :--- |
+| **Strict / Anti-DDoS** | `5` sec | `10` req | `300` sec (5m) | Public-facing untrusted endpoints under active brute-force or probing |
+| **Default / Balanced** | `10` sec | `30` req | `60` sec (1m) | **Production default:** Safely handles multi-zone fire/door bursts without false bans |
+| **Relaxed / High-Scale** | `15` sec | `60` req | `30` sec | High-frequency sensor ingestion or large campus cluster failover |
+
+### 8.3 Hot-Reload Kong Gateway (Zero Downtime)
+After editing the `.lua` file, run the setup script to instantly patch the live plugin:
+
+* **Windows (PowerShell):**
+  ```powershell
+  cd c:\Projects\cde\apigw
+  .\scripts\setup_proscalar_n8n.ps1
+  ```
+* **Linux (Bash):**
+  ```bash
+  cd /opt/cde/apigw
+  bash ./scripts/setup_proscalar_n8n.sh
+  ```
+
+Output:
+```text
+Updated WAF 'pre-function' plugin with latest Lua rules.
+```
+> [!TIP]
+> Kong reloads the Lua script in memory immediately. No container restarts are required, and existing client traffic is not interrupted.
+
+### 8.4 (Optional) Adjusting the Sustained Quota Guard
+To modify the secondary baseline rate limit (default: 120 req/min), update the `rate-limiting` configuration in [setup_proscalar_n8n.ps1](file:///c:/Projects/cde/apigw/scripts/setup_proscalar_n8n.ps1#L108) or [setup_proscalar_n8n.sh](file:///c:/Projects/cde/apigw/scripts/setup_proscalar_n8n.sh#L71):
+
+```powershell
+# Change minute quota as needed (e.g., 200 req/min):
+$rateLimitJson = @{
+    name = "rate-limiting"
+    config = @{ minute = 120; policy = "local" }
+} | ConvertTo-Json
+```
+Re-running the setup script will patch the rate-limiting plugin with the new value.
+
+
