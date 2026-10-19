@@ -5,6 +5,7 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADMIN_URL="${KONG_ADMIN_URL:-http://localhost:8001}"
 SERVICE_NAME="imops-proscalar-n8n-service"
 ROUTE_NAME="proscalar-webhook-route"
@@ -102,6 +103,23 @@ if ! echo "$PLUGINS" | grep -q '"name":"request-transformer"'; then
     echo "Attached 'request-transformer' plugin (X-Source: Kong-Proscalar-Gateway)."
 else
     echo "'request-transformer' plugin already attached."
+fi
+
+# pre-function WAF Rate-Limiting & Lockout Ban
+WAF_SCRIPT="$SCRIPT_DIR/waf_proscalar_ratelimit.lua"
+if [ -f "$WAF_SCRIPT" ]; then
+    WAF_PLUGIN_ID=$(curl -s -X GET "$ADMIN_URL/services/$SERVICE_NAME/plugins" | grep -B 2 -A 5 '"name":"pre-function"' | grep -o '"id":"[^"]*' | head -n1 | cut -d'"' -f4 || true)
+    if [ -n "$WAF_PLUGIN_ID" ]; then
+        curl -s -X PATCH "$ADMIN_URL/plugins/$WAF_PLUGIN_ID" \
+            -F "name=pre-function" \
+            -F "config.access[]=@$WAF_SCRIPT" > /dev/null
+        echo "Updated WAF 'pre-function' plugin with latest rules."
+    else
+        curl -s -X POST "$ADMIN_URL/services/$SERVICE_NAME/plugins" \
+            -F "name=pre-function" \
+            -F "config.access[]=@$WAF_SCRIPT" > /dev/null
+        echo "Attached WAF 'pre-function' plugin (Burst limit: 30 req/10s, Lockout: 60s)."
+    fi
 fi
 
 # 4. Create Consumer & Credentials

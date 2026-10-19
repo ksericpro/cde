@@ -89,6 +89,37 @@ RESP_4=$(curl -s -X POST "$ENDPOINT" \
     }')
 echo "$RESP_4" | grep -q '"success":true' && echo "✅ PASSED: Multi-zone Fire group alarm ingested as CRITICAL!" || echo "⚠️ Response: $RESP_4"
 
+# TEST 5: Rate Limiting & WAF Lockout Enforcement
+echo -e "\n[Test 5/5] Testing Gateway Rate Limiting & WAF Lockout Policy..."
+RATE_LIMITED=0
+echo -n "   Sending rapid burst of requests (exceeding 30 req/10s threshold)..."
+for i in $(seq 1 40); do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$ENDPOINT" \
+        -u "$USERNAME:$PASSWORD" \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD_5002")
+    if [ "$HTTP_CODE" -eq 429 ]; then
+        RATE_LIMITED=1
+        echo -e "\n✅ PASSED: WAF Lockout enforced after $i requests (HTTP 429 Too Many Requests)."
+        break
+    fi
+done
+
+if [ "$RATE_LIMITED" -eq 1 ]; then
+    echo -n "   Verifying immediate lockout enforcement on subsequent request..."
+    LOCKED_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$ENDPOINT" \
+        -u "$USERNAME:$PASSWORD" \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD_5002")
+    if [ "$LOCKED_CODE" -eq 429 ]; then
+        echo " Blocked as expected (HTTP 429 Lockout Jail)."
+    else
+        echo " ❌ Failed: Request returned HTTP $LOCKED_CODE instead of 429."
+    fi
+else
+    echo -e "\n⚠️ Notice: Burst completed without hitting 429 limit within the test count window."
+fi
+
 echo -e "\n===================================================="
 echo "🏁 Proscalar Option C Test Suite Finished!"
 echo "===================================================="

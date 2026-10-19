@@ -152,6 +152,25 @@ try {
     } else {
         Write-Host "'request-transformer' plugin already attached." -ForegroundColor Gray
     }
+
+    # 3f. WAF Rate-Limiting & Lockout Ban (pre-function)
+    $wafScriptPath = Join-Path $PSScriptRoot "waf_proscalar_ratelimit.lua"
+    if (Test-Path $wafScriptPath) {
+        $hasWaf = $existingPlugins.data | Where-Object { $_.name -eq "pre-function" }
+        if (-not $hasWaf) {
+            curl.exe -s -X POST "$adminUrl/services/$serviceName/plugins" `
+                -F "name=pre-function" `
+                -F "config.access[]=@$wafScriptPath" | Out-Null
+            Write-Host "Attached WAF 'pre-function' plugin (Burst limit: 30 req/10s, Lockout: 60s)." -ForegroundColor Green
+        } else {
+            curl.exe -s -X PATCH "$adminUrl/plugins/$($hasWaf.id)" `
+                -F "name=pre-function" `
+                -F "config.access[]=@$wafScriptPath" | Out-Null
+            Write-Host "Updated WAF 'pre-function' plugin with latest Lua rules." -ForegroundColor Green
+        }
+    } else {
+        Write-Host "⚠️ Warning: $wafScriptPath not found. Skipping WAF pre-function plugin." -ForegroundColor Yellow
+    }
 } catch {
     Write-Host "Plugin configuration warning: $_" -ForegroundColor Yellow
 }

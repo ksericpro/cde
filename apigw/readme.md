@@ -12,6 +12,7 @@ This setup runs **Kong Gateway OSS 3.9** with **Kong Manager (OSS UI)** enabled,
 | **`8443`** | Public Proxy (HTTPS) | Secure Gateway entrypoint (SSL/TLS) | Standard Kong SSL proxy port |
 | **`8001`** | Admin API (HTTP) | REST API to configure Kong | Internal / administrative use |
 | **`8002`** | Kong Manager UI | Web Dashboard | Access this in your browser to manage Kong |
+| **`6380`** | Redis Cache (`kong-redis`) | WAF Rate Limiting & Penalty Ban Store | Remapped from `6379` to avoid host Redis conflicts (internal: `kong-redis:6379`) |
 
 > [!NOTE]
 > **Why do I see `no Route matched with those values` at `http://localhost:8088`?**
@@ -63,7 +64,8 @@ docker compose up -d
 This starts:
 1. **`kong-db`**: PostgreSQL 15 database.
 2. **`kong-migrations`**: Runs one-time database bootstrap migrations and exits.
-3. **`kong-gateway`**: Kong Gateway instance with Kong Manager enabled.
+3. **`kong-redis`**: Redis 7 Alpine cache store for WAF Rate Limiting & Lockout Ban.
+4. **`kong-gateway`**: Kong Gateway instance with Kong Manager enabled.
 
 ### 2. Verify Services
 
@@ -209,6 +211,7 @@ Kong Gateway acts as the perimeter **Authorizer, Rate-Limiter, and Dynamic Reque
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`imops-sicc-incident-service`** | SOV @ 38ALT | `va_system_consumer` (`vizzio@imops.local`) | `http://host.docker.internal:13000/api/incidents/monitor` | 21 Ingress Routes (`/va/sov-38alt-...`) | • `CROWDING`<br/>• `LOITERING`<br/>• `SMOKING`<br/>• `FIRE`<br/>• `ILLEGAL_PARKING`<br/>• `INTRUSION` | [SICC Implementation Guide](file:///c:/Projects/cde/apigw/docs/VA_SICC_Kong_Gateway_Implementation.md) |
 | **`imops-dors-incident-service`** | DORS | `va_dors_consumer` (`dors_user@isems.com`) | `http://host.docker.internal:13000/api/incidents/monitor` | • `/va/dors-dop-c02-cyclist`<br/>• `/va/dors-waiting-c03-cyclist`<br/>• `/va/dors-dop-c01-illegal`<br/>• `/va/dors-dop-c02-illegal` | • `CYCLIST_GATHERING`<br/>• `ILLEGAL_PARKING` | [DORS Implementation Guide](file:///c:/Projects/cde/apigw/docs/VA_DORS_Kong_Gateway_Implementation.md) |
+| **`imops-proscalar-n8n-service`** | Proscalar | `proscalar_webhook_client` (`proscalar@gmail.com`) | `http://n8n-server:5678/webhook/proscalar` | `POST /api/proscalar/webhook` | • `DOOR_FORCED_OPEN` (5002)<br/>• `FIRE_CLUSTER` (12008)<br/>• `READER_TAMPER` (4001)<br/>• `POWER_FAIL` (1000) | [WAF & Proscalar Guide](file:///c:/Projects/cde/apigw/docs/implement_waf_features.md) |
 
 ### Automated Setup Scripts
 
@@ -229,6 +232,12 @@ node scripts/test_ws_client.js --listen # Continuous live event listener
 # 3. DORS VA Ingress Setup
 bash scripts/setup_dors_va.sh        # Linux (webapp)
 powershell -File scripts/setup_dors_va.ps1  # Windows
+
+# 4. Proscalar Access Control Webhook Ingress (with WAF Lockout)
+bash scripts/setup_proscalar_n8n.sh  # Linux (webapp)
+powershell -File scripts/setup_proscalar_n8n.ps1  # Windows
+bash scripts/test_proscalar_n8n.sh   # Run end-to-end verification (5 tests)
+powershell -File scripts/test_proscalar_n8n.ps1
 ```
 
 ---

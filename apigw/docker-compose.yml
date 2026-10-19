@@ -29,17 +29,42 @@ services:
       KONG_PG_PASSWORD: kongpassword
     restart: on-failure
 
+  kong-redis:
+    image: redis:7-alpine
+    container_name: kong-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - default
+      - cde-network
+    restart: unless-stopped
+
   kong:
     image: kong:3.9
     container_name: kong-gateway
     depends_on:
       kong-migrations:
         condition: service_completed_successfully
+      kong-redis:
+        condition: service_healthy
     environment:
       KONG_DATABASE: postgres
       KONG_PG_HOST: kong-db
       KONG_PG_USER: kong
       KONG_PG_PASSWORD: kongpassword
+      # Real IP Detection behind proxies / Docker bridge
+      KONG_REAL_IP_HEADER: X-Forwarded-For
+      KONG_TRUSTED_IPS: 0.0.0.0/0,::/0
+      # Allow resty.redis inside Lua sandbox
+      KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES: resty.redis
       # Proxy ports
       KONG_PROXY_LISTEN: 0.0.0.0:8000, 0.0.0.0:8443 ssl
       # Admin API & UI
@@ -69,3 +94,4 @@ networks:
 
 volumes:
   pgdata:
+  redisdata:

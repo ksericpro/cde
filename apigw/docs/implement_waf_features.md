@@ -1,191 +1,281 @@
-1. **Verify Redis Access and Kong Prerequisites:** Prerequisite.
-   Ensure your Redis instance is reachable from your Kong Gateway nodes.
+# Kong Gateway WAF Rate Limiting & Penalty Lockout Implementation
 
-The Lua script uses OpenResty's built-in `resty.redis` library, which comes pre-installed in standard Kong distributions. Test network connectivity from inside your Kong container or host:
+This document details the architecture, configuration, and operational procedures for the **WAF-style Rate Limiting & Temporary IP Lockout (Penalty Box)** implemented on the Proscalar Webhook Ingress (`POST /api/proscalar/webhook` -> `imops-proscalar-n8n-service`).
 
-```bash
-nc -zv 127.0.0.1 6379
+---
 
-```
+### 1. Architectural Overview & Policy Rules
 
-_(Replace `127.0.0.1` and `6379` with your actual Redis host and port, such as a Docker service name or private IP)._
+Standard API gateway rate limiting (such as Kong's native `rate-limiting` plugin) uses fixed or sliding counter windows. When a client violates the threshold, requests return `HTTP 429`, but the client can resume sending requests the instant the window rolls over.
 
-2. **Ensure Real Client IP Detection is Enabled:** Kong Configuration.
-   If Kong sits behind a load balancer, reverse proxy, or Cloudflare, ensure Kong extracts the actual client IP rather than the proxy's IP.
+In contrast, this **WAF-style Rate Limiter** enforces a **Lockout Jail (Penalty Box)**:
+1. **Burst Threshold Tracking:** Evaluates client requests using atomic Redis operations within a sliding window (**30 requests per 10-second window**).
+2. **Penalty Enforcement:** If the burst threshold is violated, the client's IP is immediately jailed for a penalty duration (**60 seconds**).
+3. **Edge Rejection:** Subsequent requests from the banned IP are rejected at the gateway edge (`HTTP 429 Too Many Requests`) with an active `Retry-After` countdown, **without touching upstream services (n8n or backend)**.
+4. **Alarm & Life-Safety Fail-Open:** Because Proscalar ingests critical building alarms (fire, tamper, door security), Redis connectivity has a fast 100ms timeout and **fails open** if Redis is unreachable to avoid dropping emergency alerts.
 
-In your `kong.conf` or environment variables, configure:
+### 1.1 Enforced Policy Parameters
 
-```ini
-real_ip_header = X-Forwarded-For
-trusted_ips = 0.0.0.0/0,::/0  # Or restrict to your upstream proxy CIDRs
+| Parameter | Value | Description |
+| :--- | :---: | :--- |
+| **Target Ingress Route** | `POST /api/proscalar/webhook` | Attached to service `imops-proscalar-n8n-service` |
+| **Tracking Identity** | Client IP (`X-Forwarded-For`) | Extracts real caller IP via Kong's `trusted_ips` configuration |
+| **Burst Window** | **`10 seconds`** | Window tracked in Redis key `waf:rate:<ip>` |
+| **Burst Ceiling** | **`30 requests`** | Safe for multi-zone alarms & badge scans; blocks abusive spikes |
+| **Lockout Jail Duration** | **`60 seconds`** | Temporary ban TTL stored in Redis key `waf:ban:<ip>` |
+| **Fail-Safe Socket Timeout** | **`100 ms`** | Fail-fast socket; fails open if Redis is down |
+| **Secondary Quota Guard** | **`120 req / min`** | Native Kong `rate-limiting` plugin enforcing a sustained ceiling |
 
-```
-
-3. **Prepare the Lua Script:** Logic Verification.
-   Create the Lua snippet that handles connection pooling, lockout checks, 10-second burst tracking, and the 60-second penalty ban.
-
-Save this logic to a file named `rate_limit_ban.lua` for easy deployment:
-
-```lua
-local redis = require "resty.redis"
-local red = redis:new()
-red:set_timeout(1000)
-
--- Configure your Redis connection details
-local ok, err = red:connect("127.0.0.1", 6379)
-if not ok then
-  kong.log.err("Failed to connect to Redis: ", err)
-  return
-end
-
--- Optional: If Redis requires authentication
--- red:auth("your_redis_password")
-
-local client_ip = kong.client.get_forwarded_ip() or kong.client.get_ip()
-local ban_key = "ban:" .. client_ip
-local rate_key = "rate:" .. client_ip
-
--- Step 1: Check if IP is currently under a 60s lockout
-local banned, _ = red:get(ban_key)
-if banned and banned ~= ngx.null then
-  local ttl, _ = red:ttl(ban_key)
-  red:set_keepalive(10000, 100)
-  return kong.response.exit(429, {
-    message = "Rate limit exceeded. Access blocked for " .. tostring(ttl) .. " seconds."
-  }, {
-    ["Retry-After"] = tostring(ttl),
-    ["Content-Type"] = "application/json"
-  })
-end
-
--- Step 2: Increment counter for the 10-second window
-local count, err = red:incr(rate_key)
-if count == 1 then
-  red:expire(rate_key, 10)
-end
-
--- Step 3: Trigger 60-second lockout if requests exceed 2
-if count > 2 then
-  red:setex(ban_key, 60, "locked")
-  red:del(rate_key)
-  red:set_keepalive(10000, 100)
-  return kong.response.exit(429, {
-    message = "Rate limit exceeded. You are locked out for 60 seconds."
-  }, {
-    ["Retry-After"] = "60",
-    ["Content-Type"] = "application/json"
-  })
-end
-
--- Step 4: Return Redis connection to OpenResty socket pool
-red:set_keepalive(10000, 100)
+### 1.2 Enforcement Lifecycle
 
 ```
-
-4. **Attach the Plugin to Kong:** Deployment.
-   Choose **Method 1** (Admin API) or **Method 2** (Declarative DB-less) depending on your setup.
-
-**Method 1: Via Admin API (REST)**
-
-```bash
-curl -i -X POST http://localhost:8001/services/<YOUR_SERVICE_NAME>/plugins \
-  -F "name=pre-function" \
-  -F "config.access[]=@rate_limit_ban.lua"
-
+Incoming Request (POST /api/proscalar/webhook)
+  │
+  ├─► [Step 1: Check Lockout Jail]
+  │     Query Redis: "waf:ban:<ip>"
+  │     ├── IF BANNED:
+  │     │   └─► REJECT AT EDGE (HTTP 429 Too Many Requests)
+  │     │       Header: "Retry-After: <remaining_ttl>"
+  │     │       Header: "X-WAF-Status: Blocked"
+  │     │       (Backend n8n is never touched)
+  │     │
+  │     └── IF NOT BANNED: Proceed to Step 2
+  │
+  ├─► [Step 2: Atomic Burst Counter]
+  │     Increment counter: "waf:rate:<ip>" (TTL: 10s)
+  │     ├── IF COUNT > 30 (Burst Limit Exceeded):
+  │     │   └─► TRIGGER LOCKOUT JAIL
+  │     │       Set Redis: "waf:ban:<ip>" with TTL = 60s
+  │     │       Delete: "waf:rate:<ip>"
+  │     │       Return HTTP 429 Too Many Requests
+  │     │       Header: "Retry-After: 60"
+  │     │       Header: "X-WAF-Status: Penalized"
+  │     │
+  │     └── IF COUNT <= 30 (Normal Traffic):
+  │         └─► ALLOW THROUGH
+  │             Forward request to n8n upstream (HTTP 200 OK)
 ```
 
-_(To apply globally instead of per-service, omit `/services/<YOUR_SERVICE_NAME>` from the URL)._
+### 1.3 Lockout Response Example
 
-**Method 2: Via Declarative YAML (`kong.yml` / decK)**
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: 54
+X-WAF-Status: Blocked
 
-```yaml
-_format_version: "3.0"
-
-services:
-  - name: my-service
-    url: http://backend-api:8080
-    routes:
-      - name: my-route
-        paths:
-          - /
-    plugins:
-      - name: pre-function
-        config:
-          access:
-            - |
-              local redis = require "resty.redis"
-              local red = redis:new()
-              red:set_timeout(1000)
-
-              local ok, err = red:connect("127.0.0.1", 6379)
-              if not ok then
-                kong.log.err("Failed to connect to Redis: ", err)
-                return
-              end
-
-              local client_ip = kong.client.get_forwarded_ip() or kong.client.get_ip()
-              local ban_key = "ban:" .. client_ip
-              local rate_key = "rate:" .. client_ip
-
-              local banned, _ = red:get(ban_key)
-              if banned and banned ~= ngx.null then
-                local ttl, _ = red:ttl(ban_key)
-                red:set_keepalive(10000, 100)
-                return kong.response.exit(429, {
-                  message = "Rate limit exceeded. Access blocked for " .. tostring(ttl) .. " seconds."
-                }, {
-                  ["Retry-After"] = tostring(ttl),
-                  ["Content-Type"] = "application/json"
-                })
-              end
-
-              local count, err = red:incr(rate_key)
-              if count == 1 then
-                red:expire(rate_key, 10)
-              end
-
-              if count > 2 then
-                red:setex(ban_key, 60, "locked")
-                red:del(rate_key)
-                red:set_keepalive(10000, 100)
-                return kong.response.exit(429, {
-                  message = "Rate limit exceeded. You are locked out for 60 seconds."
-                }, {
-                  ["Retry-After"] = "60",
-                  ["Content-Type"] = "application/json"
-                })
-              end
-
-              red:set_keepalive(10000, 100)
-```
-
-Sync the configuration using decK:
-
-```bash
-deck gateway sync kong.yml
-
-```
-
-5. **Test and Validate Behavior:** Verification.
-   Send rapid requests using `curl` to observe the trigger and lockout:
-
-1. **Request 1 (0s):** Returns `200 OK`.
-1. **Request 2 (2s):** Returns `200 OK`.
-1. **Request 3 (4s):** Returns `HTTP 429 Too Many Requests` with:
-
-```json
 {
-  "message": "Rate limit exceeded. You are locked out for 60 seconds."
+  "error": "Too Many Requests",
+  "message": "WAF: Client locked out due to anomalous burst. Try again in 54 seconds.",
+  "retry_after": 54
 }
 ```
 
-4. **Inspect Redis:**
+---
 
-```bash
-redis-cli keys "*:*.*"
-# Shows ban:<your-ip> with TTL counting down from 60
-redis-cli ttl ban:<your-ip>
+## 2. Infrastructure Components
 
+### 2.1 Redis Service (`docker-compose.yml`)
+A dedicated lightweight Redis container (`kong-redis`) runs in `apigw/docker-compose.yml` on the shared internal Docker network:
+
+```yaml
+  kong-redis:
+    image: redis:7-alpine
+    container_name: kong-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - default
+      - cde-network
+    restart: unless-stopped
 ```
 
-5. **Subsequent Requests during the 60s period:** Immediately blocked with `429` and the active remaining `Retry-After` TTL without proxying upstream.
+### 2.2 Real Client IP Detection
+To prevent Docker NAT bridge or reverse proxies from masking real client IPs (which would cause entire subnets to be jailed together), Kong is configured with:
+
+```yaml
+      KONG_REAL_IP_HEADER: X-Forwarded-For
+      KONG_TRUSTED_IPS: 0.0.0.0/0,::/0
+      # Allow resty.redis inside Kong's Lua sandbox
+      KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES: resty.redis
+```
+
+---
+
+## 3. Lua Script: `waf_proscalar_ratelimit.lua`
+
+The core WAF logic is maintained in [waf_proscalar_ratelimit.lua](file:///c:/Projects/cde/apigw/scripts/waf_proscalar_ratelimit.lua):
+
+* **Fail-Fast Socket:** `red:set_timeout(100)` prevents slow Redis lookups from stalling webhook ingress.
+* **Fail-Open Safety:** Returns cleanly on connection errors so legitimate alarms pass through.
+* **Atomic INCR + EXPIRE:** Uses Redis `EVAL` to avoid race conditions during concurrent bursts.
+* **Response Headers:** Injects `X-WAF-Status: Penalized` (upon initial ban) and `X-WAF-Status: Blocked` (during active lockout) along with standard `Retry-After`.
+
+---
+
+## 4. Automated Provisioning
+
+Deploying the service, routes, credentials, and WAF plugin is fully automated:
+
+### Windows (PowerShell)
+```powershell
+cd c:\Projects\cde\apigw
+.\scripts\setup_proscalar_n8n.ps1
+```
+
+### Linux (Bash)
+```bash
+cd /opt/cde/apigw
+bash ./scripts/setup_proscalar_n8n.sh
+```
+
+The script automatically attaches or updates the `pre-function` plugin on `imops-proscalar-n8n-service`.
+
+---
+
+## 5. Operational Commands & Emergency Unban
+
+### View Active Lockouts
+To see all currently banned client IPs and their remaining penalty countdown:
+
+* **PowerShell:**
+  ```powershell
+  .\scripts\get_banned_ips.ps1
+  ```
+* **Bash:**
+  ```bash
+  bash ./scripts/get_banned_ips.sh
+  ```
+
+### Manually Unban an IP Address
+If an IP was locked out by accident or after incident triage:
+
+* **PowerShell:**
+  ```powershell
+  .\scripts\unban_ip.ps1 -IpAddress "192.168.1.100"
+  ```
+* **Bash:**
+  ```bash
+  bash ./scripts/unban_ip.sh "192.168.1.100"
+  ```
+
+---
+
+## 6. End-to-End Verification
+
+Run the automated test suite to verify authorization, alarm ingestion, and WAF rate limit & lockout enforcement:
+
+```powershell
+cd c:\Projects\cde\apigw
+.\scripts\test_proscalar_n8n.ps1
+```
+
+**Test 5 Output:**
+```
+[Test 5/5] Testing Gateway Rate Limiting & WAF Lockout Policy...
+   Sending rapid burst of requests (exceeding 30 req/10s threshold)...
+✅ PASSED: WAF Lockout enforced after 31 requests (HTTP 429 Too Many Requests).
+   WAF Details: X-WAF-Status = Penalized | Retry-After = 60 s
+   Verifying immediate lockout enforcement on subsequent request... Blocked as expected (HTTP 429 Lockout Jail).
+```
+
+---
+
+## 7. Updating an Existing Running Deployment
+
+Follow these steps to roll out the WAF rate limiting update to a server where Kong is already running (e.g., local developer machine or remote Linux host `sov-webapp`).
+
+### Step 1: Start `kong-redis` and Recreate `kong-gateway`
+
+Update the running Docker stack so that Kong links with the new Redis container and loads the real-IP environment variables:
+
+#### On Windows (PowerShell):
+```powershell
+cd c:\Projects\cde\apigw
+
+# 1. Start kong-redis and update kong-gateway
+docker compose up -d kong-redis kong
+
+# 2. Confirm containers are healthy and running
+docker compose ps
+```
+
+#### On Linux (`sov-webapp`):
+```bash
+cd /opt/cde/apigw
+
+# 1. Pull latest repo changes
+git pull origin main
+
+# 2. Launch kong-redis and recreate kong-gateway
+docker compose up -d kong-redis kong
+
+# 3. Test Redis status & connectivity
+docker exec kong-redis redis-cli ping
+# (Should return: PONG)
+
+# Or test TCP connectivity from inside Kong Gateway container:
+docker exec kong-gateway bash -c "</dev/tcp/kong-redis/6379 && echo 'Redis reachable from Kong!'"
+```
+
+> [!NOTE]
+> Database records in PostgreSQL (`kong-db`) are preserved in the persistent volume `pgdata`. Existing services, routes, consumers, and credentials will not be lost.
+
+### Step 2: Apply the WAF Policy to the Service
+
+The deployment scripts are idempotent. They will preserve your existing service and route configurations, attaching or updating only the WAF `pre-function` plugin:
+
+* **Windows:**
+  ```powershell
+  cd c:\Projects\cde\apigw
+  .\scripts\setup_proscalar_n8n.ps1
+  ```
+
+* **Linux:**
+  ```bash
+  cd /opt/cde/apigw
+  bash ./scripts/setup_proscalar_n8n.sh
+  ```
+
+*(Alternative)* **Manual Apply via Kong Admin API (Direct `curl`):**
+If you prefer to attach only the plugin without re-running the full setup script:
+```bash
+curl -i -X POST http://localhost:8001/services/imops-proscalar-n8n-service/plugins \
+  -F "name=pre-function" \
+  -F "config.access[]=@scripts/waf_proscalar_ratelimit.lua"
+```
+
+### Step 3: Run the Verification Suite
+
+Validate normal throughput and WAF lockout enforcement:
+
+* **Windows:**
+  ```powershell
+  .\scripts\test_proscalar_n8n.ps1
+  ```
+* **Linux:**
+  ```bash
+  bash ./scripts/test_proscalar_n8n.sh
+  ```
+
+### Step 4: Emergency Rollback (Disable WAF)
+
+If you need to instantly disable the WAF without restarting any containers:
+
+```bash
+# 1. Find the pre-function plugin ID
+PLUGIN_ID=$(curl -s http://localhost:8001/services/imops-proscalar-n8n-service/plugins | grep -B 2 -A 5 '"name":"pre-function"' | grep -o '"id":"[^"]*' | head -n1 | cut -d'"' -f4)
+
+# 2. Delete the plugin
+curl -X DELETE "http://localhost:8001/plugins/$PLUGIN_ID"
+```
+The gateway immediately reverts to standard rate limiting without traffic interruption.
+
