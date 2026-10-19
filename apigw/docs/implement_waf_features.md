@@ -336,4 +336,28 @@ $rateLimitJson = @{
 ```
 Re-running the setup script will patch the rate-limiting plugin with the new value.
 
+---
+
+## 9. Verifying the WAF in Kong Manager UI
+
+You can visually inspect and confirm the active WAF rules directly in the browser using Kong Manager:
+
+1. **Open Kong Manager:**
+   Navigate to **`http://localhost:8002`** (or `http://<SERVER_IP>:8002`).
+2. **Locate the Service:**
+   In the left sidebar, click **Gateway Services** $\rightarrow$ select **`imops-proscalar-n8n-service`**.
+3. **Inspect Active Plugins:**
+   Click the **Plugins** tab.
+   * You will see **`Kong Functions (Pre-Plugins)`** (`pre-function`) with a green badge: **`Enabled`**.
+   * It will show the timestamp of when the setup script was executed.
+4. **View Injected Rules:**
+   Click on the **`Kong Functions (Pre-Plugins)`** row.
+   * Scroll down to **Plugin Specific Configuration**.
+   * In the **`access`** array, you can inspect the live Lua code:
+     * `burst_limit = 30` *(30 req / 10s)*
+     * `lockout_ttl = 60` *(60-second jail)*
+     * Redis socket connection to `kong-redis:6379`.
+5. **Cross-Reference:**
+   * For the external vendor API guide and functional test scenarios, see [`docs/proscalar_kong_api_integration_guide.md`](file:///c:/Projects/cde/docs/proscalar_kong_api_integration_guide.md).
+
 

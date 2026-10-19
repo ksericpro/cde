@@ -418,30 +418,50 @@ RateLimit-Limit: 120
 | **`404 Not Found`** | Incorrect Route | Request targeted an undefined path | Target `POST /api/proscalar/webhook` on proxy port `8088` (or `8443`). |
 | **`413 Payload Too Large`** | Size Limit Exceeded | Payload size > 5 MB | Compress or trim metadata arrays before transmitting. |
 | **`422 Unprocessable Entity`**| Malformed JSON | Body is not valid JSON or quotes were corrupted | Ensure valid JSON formatting without raw trailing commas or broken escape sequences. |
-| **`429 Too Many Requests`** | Rate Limit Exceeded | Rate exceeded 120 requests in 1 minute | Back off transmission rate until `RateLimit-Reset` seconds elapse. |
+| **`429 Too Many Requests`** | Rate Limit / WAF Lockout | Exceeded sustained ceiling (120 req/min) or burst threshold (**>30 req/10s**). Offending IP is placed in a **60s penalty lockout** (`X-WAF-Status: Blocked`). | Wait for the `Retry-After` seconds to elapse or run unban script. See WAF policy below. |
 | **`502 Bad Gateway`** | Upstream Down | Kong cannot connect to n8n or backend container | Check container health via `docker ps`. |
+
+---
+
+### 5.3 Edge WAF Rate Limiting & Lockout Policy
+
+To prevent webhook flooding and denial-of-service against downstream systems, Kong enforces a Redis-backed WAF policy:
+* **Burst Limit:** **30 requests per 10-second window**.
+* **Lockout Penalty:** Exceeding 30 requests immediately triggers a **60-second penalty lockout** on the caller IP.
+* **Edge Rejection:** During lockout, all subsequent calls receive `HTTP 429 Too Many Requests` with headers `Retry-After: <seconds>` and `X-WAF-Status: Blocked`.
+* **Alarm Fail-Safe:** Fail-open mode ensures critical fire and life-safety alerts are never lost if Redis is temporarily unreachable.
+* **Full Spec & Details:** Refer to [`apigw/docs/implement_waf_features.md`](file:///c:/Projects/cde/apigw/docs/implement_waf_features.md).
 
 ---
 
 ## 6. How to Test the Calls (1-Click Runbook)
 
-### Method 1: Windows 1-Click Batch Runner (`.bat`)
-Run the pre-configured script from Command Prompt or double-click in File Explorer:
+### Method 1: Automated Infrastructure & WAF Verification Suite (`test_proscalar_n8n`)
+Runs 5 automated verification tests (Auth check, Active 5002, IDLE 4000, Fire Group 12008, and WAF burst lockout):
+
+```bash
+# In Bash (Linux / Git Bash):
+bash c:/Projects/cde/apigw/scripts/test_proscalar_n8n.sh
+
+# Or in PowerShell:
+powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_proscalar_n8n.ps1
+
+# Or in Windows CMD:
+c:\Projects\cde\apigw\scripts\test_proscalar_n8n.bat
+```
+
+### Method 2: Functional Scenario Suite (`test_imops_proscalar_collection`)
+Runs the 6 full incident ingestion scenarios into iMOPS:
+
 ```cmd
 # Run all 6 calls sequentially:
 c:\Projects\cde\apigw\scripts\test_imops_proscalar_collection.bat all
 
-# Run only scenario 1 (Door Forced):
-c:\Projects\cde\apigw\scripts\test_imops_proscalar_collection.bat 1
-
-# Run only scenario 3 (Auto-Resolve Tamper):
-c:\Projects\cde\apigw\scripts\test_imops_proscalar_collection.bat 3
+# Run specific scenarios:
+c:\Projects\cde\apigw\scripts\test_imops_proscalar_collection.bat 1   # Door Forced
+c:\Projects\cde\apigw\scripts\test_imops_proscalar_collection.bat 3   # Auto-Resolve Tamper
 ```
-
-### Method 2: Windows PowerShell Runner (`.ps1`)
-```powershell
-powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_imops_proscalar_collection.ps1 all
-```
+*(Or via PowerShell: `powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_imops_proscalar_collection.ps1 all`)*
 
 ### Method 3: Postman Collection Import
 1. In Postman, click **Import** $\rightarrow$ select [`docs/imops_proscalar.json`](file:///c:/Projects/cde/docs/imops_proscalar.json).
@@ -450,6 +470,19 @@ powershell -ExecutionPolicy Bypass -File c:\Projects\cde\apigw\scripts\test_imop
    - `PROSCALAR_USER` = `proscalar@gmail.com`
    - `PROSCALAR_PASS` = `fwpkyjcf2i8fcoP05yEz`
 3. Click **Send** on any request.
+
+### Method 4: WAF Monitoring & Unban Scripts
+If testing triggers a 60-second penalty lockout on your IP:
+
+```bash
+# Check current banned IPs in Redis:
+bash c:/Projects/cde/apigw/scripts/get_banned_ips.sh
+# (or in PowerShell: .\apigw\scripts\get_banned_ips.ps1)
+
+# Immediately release an IP from lockout jail:
+bash c:/Projects/cde/apigw/scripts/unban_ip.sh 127.0.0.1
+# (or in PowerShell: .\apigw\scripts\unban_ip.ps1 -IpAddress "127.0.0.1")
+```
 
 ---
 
@@ -464,4 +497,7 @@ After firing any webhook, verify the results live:
 2. **n8n Workflow Executions:**
    * Open **`https://localhost:5678`** $\rightarrow$ Click **Executions** in sidebar to view visual node-by-node execution graphs.
 3. **Kong Manager Dashboard:**
-   * Open **`http://localhost:8002`** $\rightarrow$ Click **Gateway Services** $\rightarrow$ `imops-proscalar-n8n-service` to inspect real-time throughput metrics.
+   * Open **`http://localhost:8002`** (or `http://<SERVER_IP>:8002`).
+   * Go to **Gateway Services** $\rightarrow$ Click **`imops-proscalar-n8n-service`** $\rightarrow$ Click **Plugins** tab.
+   * Verify **`Kong Functions (Pre-Plugins)`** (`pre-function`) is **Enabled** (this is the WAF engine).
+   * Verify **`rate-limiting`** (120 req/min), **`request-size-limiting`** (5MB), and **`basic-auth`** are active.
