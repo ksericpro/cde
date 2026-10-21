@@ -257,11 +257,126 @@
         },
         "overrides": []
       }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 400,
+      "title": "n8n Workflow Automation Engine Telemetry (n8n Prometheus Metrics)",
+      "type": "row"
+    },
+    {
+      "id": 10,
+      "title": "n8n Workflow Execution Rate (Runs / Sec)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(n8n_execution_success_total[1m])) or sum(rate(n8n_execution_total{status=\"success\"}[1m]))",
+          "legendFormat": "Success",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(n8n_execution_failed_total[1m])) or sum(rate(n8n_execution_total{status=\"error\"}[1m]))",
+          "legendFormat": "Failed",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Success" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Failed" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "title": "n8n Workflow Execution Duration (Median / P95)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 24 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "(histogram_quantile(0.95, sum(rate(n8n_workflow_execution_duration_seconds_bucket[1m])) by (le)) * 1000) or (histogram_quantile(0.95, sum(rate(n8n_execution_duration_seconds_bucket[1m])) by (le)) * 1000)",
+          "legendFormat": "P95 Duration (ms)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "(histogram_quantile(0.50, sum(rate(n8n_workflow_execution_duration_seconds_bucket[1m])) by (le)) * 1000) or (histogram_quantile(0.50, sum(rate(n8n_execution_duration_seconds_bucket[1m])) by (le)) * 1000)",
+          "legendFormat": "Median Duration (ms)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "n8n Active Workflows & Running Executions",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 24 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "n8n_workflow_active_count or n8n_active_workflows or count(n8n_workflow_info)",
+          "legendFormat": "Active Workflows",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "n8n_execution_running_total or count(n8n_workflow_execution_running) or 0",
+          "legendFormat": "Running Executions",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
     }
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["cde", "infrastructure", "kong", "monitoring"],
+  "tags": ["cde", "infrastructure", "kong", "n8n", "monitoring"],
   "time": {
     "from": "now-1h",
     "to": "now"
@@ -270,7 +385,7 @@
     "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
   },
   "timezone": "browser",
-  "title": "CDE - Infrastructure & Kong Gateway Overview",
+  "title": "CDE - Infrastructure, Kong Gateway & n8n Overview",
   "uid": "cde-infra-kong-overview",
-  "version": 1
+  "version": 2
 }

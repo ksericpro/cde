@@ -30,3 +30,11 @@ scrape_configs:
       - targets: ['host.docker.internal:8001']
         labels:
           service: 'kong-api-gateway'
+
+  # Scrape n8n Workflow Automation Engine (Executions, Durations, Webhooks)
+  - job_name: 'n8n'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['n8n:5678']
+        labels:
+          service: 'n8n-workflow-engine'

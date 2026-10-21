@@ -17,17 +17,17 @@ fi
 # 3000: Grafana Dashboard UI
 # 9090: Prometheus Server API / UI
 # 9100: Node Exporter Host Metrics
-# 8080: cAdvisor Container Metrics
+# 8085: cAdvisor Container Metrics (remapped from 8080 to avoid Keycloak conflict)
 sudo ufw allow 3000/tcp comment 'CDE Grafana Web UI'
 sudo ufw allow 9090/tcp comment 'CDE Prometheus Server'
 sudo ufw allow 9100/tcp comment 'CDE Prometheus Node Exporter'
-sudo ufw allow 8080/tcp comment 'CDE Google cAdvisor'
+sudo ufw allow 8085/tcp comment 'CDE Google cAdvisor'
 
 echo "[+] Reloading UFW firewall..."
 sudo ufw reload
 
 echo "[+] Current UFW Status:"
-sudo ufw status verbose | grep -E "(3000|9090|9100|8080)" || true
+sudo ufw status verbose | grep -E "(3000|9090|9100|8085)" || true
 
 echo "================================================================="
 echo "[+] UFW configuration completed successfully."

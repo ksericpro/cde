@@ -7,23 +7,24 @@ This guide describes the architecture, deployment, configuration, dashboard visu
 
 ## 1. Overview & Architecture
 
-The CDE monitoring architecture collects real-time metrics across 3 foundational layers:
+The CDE monitoring architecture collects real-time metrics across 4 foundational layers:
 1. **Host Infrastructure Layer**: CPU, RAM, disk I/O, swap, network throughput, and Linux system load via `node-exporter`.
 2. **Container Runtime Layer**: Per-container CPU throttling, memory limits, network socket stats, and restart loops via Google `cAdvisor`.
 3. **Edge API Gateway Layer**: Ingress request rates (RPS), P90/P95/P99 latency distribution, HTTP status codes (`2xx`/`4xx`/`5xx`), and upstream service health via the `kong-prometheus` plugin.
+4. **Workflow Automation Engine Layer**: Workflow execution rates (success vs failed), execution duration (median and P95), and active workflow count via n8n's Prometheus metrics endpoint.
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 TELEMETRY PRODUCERS                                    │
-├──────────────────────────┬──────────────────────────┬──────────────────────────────────┤
-│ Host Node Exporter       │ Google cAdvisor          │ Kong API Gateway                 │
-│ (:9100/metrics)          │ (:8080/metrics)          │ (:8001/metrics)                  │
-│ • CPU / Memory           │ • Per-container CPU      │ • Request Rate (RPS)             │
-│ • Disk I/O & Filesystem  │ • Memory Working Set     │ • P90/P95/P99 Latency            │
-│ • Host Network In/Out    │ • Container Restarts     │ • HTTP 2xx/4xx/5xx Breakdown     │
-└────────────┬─────────────┴────────────┬─────────────┴─────────────────┬────────────────┘
-             │                          │                               │
-             └──────────────────────────┼───────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                          TELEMETRY PRODUCERS                                           │
+├──────────────────────────┬──────────────────────────┬────────────────────────────┬─────────────────────┤
+│ Host Node Exporter       │ Google cAdvisor          │ Kong API Gateway           │ n8n Workflow Engine │
+│ (:9100/metrics)          │ (:8085/metrics)          │ (:8001/metrics)            │ (:5678/metrics)     │
+│ • CPU / Memory           │ • Per-container CPU      │ • Request Rate (RPS)       │ • Workflow Runs     │
+│ • Disk I/O & Filesystem  │ • Memory Working Set     │ • P90/P95/P99 Latency      │ • Success / Fail    │
+│ • Host Network In/Out    │ • Container Restarts     │ • HTTP 2xx/4xx/5xx Status  │ • Execution Duration│
+└────────────┬─────────────┴────────────┬─────────────┴──────────────┬─────────────┴──────────┬──────────┘
+             │                          │                            │                        │
+             └──────────────────────────┴─────────────┬──────────────┴────────────────────────┘
                                         │ (Scrapes every 15s)
                                         ▼
                          ┌──────────────────────────────┐
@@ -50,7 +51,7 @@ The CDE monitoring architecture collects real-time metrics across 3 foundational
 | **Grafana** | `cde-grafana` | `3000` | `3000` | Web dashboard UI & visualization engine |
 | **Prometheus** | `cde-prometheus` | `9090` | `9090` | Time-series database & metrics scraper |
 | **Node Exporter** | `cde-node-exporter` | `9100` | `9100` | Linux host hardware & OS kernel metrics |
-| **cAdvisor** | `cde-cadvisor` | `8080` | `8080` | Docker container resource monitoring |
+| **cAdvisor** | `cde-cadvisor` | `8085` | `8080` | Docker container resource monitoring (host port 8085) |
 | **Kong Admin** | `kong-gateway` | `8001` | `8001` | Scrape target for `/metrics` endpoint |
 
 ---
@@ -95,7 +96,7 @@ cd /path/to/cde/grafana/scripts
 chmod +x *.sh
 sudo ./configure_ufw_monitoring.sh
 ```
-This opens ports `3000` (Grafana), `9090` (Prometheus), `9100` (Node Exporter), and `8080` (cAdvisor).
+This opens ports `3000` (Grafana), `9090` (Prometheus), `9100` (Node Exporter), and `8085` (cAdvisor).
 
 ### Step 2: Deploy Prometheus and Grafana Stack
 Run the deployment script:
@@ -129,19 +130,21 @@ curl -i http://localhost:8001/metrics
    - `node-exporter` (`cde-node-exporter:9100`)
    - `cadvisor` (`cde-cadvisor:8080`)
    - `kong-gateway` (`host.docker.internal:8001` or `kong-gateway:8001`)
+   - `n8n` (`n8n:5678`)
 
 ---
 
 ## 5. Grafana Dashboard Visualizations
 
 ### 5.1 Out-of-the-box CDE Overview Dashboard
-The stack automatically provisions the dashboard **"CDE - Infrastructure & Kong Gateway Overview"** under folder `CDE Infrastructure & Gateway`:
+The stack automatically provisions the dashboard **"CDE - Infrastructure, Kong Gateway & n8n Overview"** under folder `CDE Infrastructure & Gateway`:
 1. Log in to Grafana at **[http://localhost:3000](http://localhost:3000)** (Default: `admin` / `cdepassword123`).
-2. Navigate to **Dashboards** $\rightarrow$ **CDE Infrastructure & Gateway** $\rightarrow$ **CDE - Infrastructure & Kong Gateway Overview**.
+2. Navigate to **Dashboards** $\rightarrow$ **CDE Infrastructure & Gateway** $\rightarrow$ **CDE - Infrastructure, Kong Gateway & n8n Overview**.
 3. The dashboard features:
    - **Host Gauges**: CPU Busy %, RAM Usage %, Root Disk Used %, Network I/O throughput.
-   - **Docker Containers**: Per-container CPU percentage and memory working set (`kong-gateway`, `cde-n8n`, `kong-db`, etc.).
+   - **Docker Containers**: Per-container CPU percentage and memory working set (`kong-gateway`, `n8n-server`, `kong-db`, etc.).
    - **Kong Gateway**: Requests per second (RPS), Latency quantiles (P90, P95, P99), and HTTP status codes (`2xx`, `4xx`, `5xx`).
+   - **n8n Workflow Engine**: Workflow execution throughput (Success vs Error runs/sec), Median & P95 execution duration (ms), and active workflows count.
 
 ### 5.2 Importing Community Standard Dashboards (Hawkeye Pattern)
 As recommended in enterprise setups, you can also import world-class community dashboards via Grafana ID:

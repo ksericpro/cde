@@ -13,8 +13,9 @@ For the full architectural breakdown, dashboard configuration, and troubleshooti
 | **Grafana** | `3000` | Web UI Dashboard & Alert Rules | `cde-grafana` (`grafana/grafana:11.2.0`) |
 | **Prometheus** | `9090` | Time-Series TSDB (15-day retention) | `cde-prometheus` (`prom/prometheus:v2.54.1`) |
 | **Node Exporter** | `9100` | Host CPU, RAM, Disk I/O, Network | `cde-node-exporter` (`prom/node-exporter:v1.8.2`) |
-| **cAdvisor** | `8080` | Container CPU, RAM, Restarts | `cde-cadvisor` (`gcr.io/cadvisor/cadvisor:v0.49.1`) |
+| **cAdvisor** | `8085` | Container CPU, RAM, Restarts | `cde-cadvisor` (`gcr.io/cadvisor/cadvisor:v0.49.1`) |
 | **Kong Plugin** | `8001/metrics` | Ingress RPS, Latencies (P90-P99), 2xx/4xx/5xx | `kong-gateway` (`kong:3.9`) |
+| **n8n Engine** | `5678/metrics` | Workflow runs, Success/Fail rates, Durations | `n8n-server` (`docker.n8n.io/n8nio/n8n:latest`) |
 
 ---
 
@@ -76,7 +77,7 @@ sudo ./scripts/configure_ufw_monitoring.sh
 
 ### Step 4: Open Dashboards
 * **Grafana**: **[http://localhost:3000](http://localhost:3000)** (Default: `admin` / `cdepassword123`)
-  * Pre-provisioned Dashboard: **CDE - Infrastructure & Kong Gateway Overview**
+  * Pre-provisioned Dashboard: **CDE - Infrastructure, Kong Gateway & n8n Overview**
   * Recommended Community Dashboards: ID **`1860`** (Node Exporter Full) & ID **`7424`** (Kong Official)
 * **Prometheus Targets**: **[http://localhost:9090/targets](http://localhost:9090/targets)**
 * **Verification Script**:

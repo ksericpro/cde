@@ -27,6 +27,14 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
       - EXECUTIONS_DATA_PRUNE_MAX_COUNT=10000
+
+      # Prometheus & Observability Telemetry
+      - N8N_METRICS=true
+      - N8N_METRICS_PREFIX=n8n_
+      - N8N_METRICS_INCLUDE_WORKFLOW_ID_LABEL=true
+      - N8N_METRICS_INCLUDE_WORKFLOW_INFO=true
+      - N8N_METRICS_INCLUDE_WEBHOOK_METRICS=true
+
       # Target Backend API Integration (Option C: Proscalar -> iMOPS)
       - PROSCALAR_TO_IMOPS_API=${PROSCALAR_TO_IMOPS_API:-http://host.docker.internal:13000}
       - PROSCALAR_TO_IMOPS_AUTH=${PROSCALAR_TO_IMOPS_AUTH:-Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg==}

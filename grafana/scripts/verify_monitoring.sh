@@ -7,8 +7,9 @@ set -euo pipefail
 PROMETHEUS_HOST="${1:-http://localhost:9090}"
 GRAFANA_HOST="${2:-http://localhost:3000}"
 NODE_EXPORTER_HOST="${3:-http://localhost:9100}"
-CADVISOR_HOST="${4:-http://localhost:8080}"
+CADVISOR_HOST="${4:-http://localhost:8085}"
 KONG_ADMIN_HOST="${5:-http://localhost:8001}"
+N8N_HOST="${6:-https://localhost:5678}"
 
 echo "================================================================="
 echo "  Verifying CDE Monitoring Infrastructure Endpoints              "
@@ -21,7 +22,7 @@ check_endpoint() {
 
   printf "%-25s -> %-35s " "${name}" "${url}"
   local status_code
-  status_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "${url}" || echo "DOWN")
+  status_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 3 "${url}" || echo "DOWN")
 
   if [[ "${status_code}" == "${expected}"* ]]; then
     echo "[PASS] (HTTP ${status_code})"
@@ -36,6 +37,7 @@ check_endpoint "Grafana Health"         "${GRAFANA_HOST}/api/health" "200"
 check_endpoint "Node Exporter Metrics"  "${NODE_EXPORTER_HOST}/metrics" "200"
 check_endpoint "cAdvisor Health"        "${CADVISOR_HOST}/healthz" "200"
 check_endpoint "Kong Gateway Metrics"   "${KONG_ADMIN_HOST}/metrics" "200"
+check_endpoint "n8n Engine Metrics"     "${N8N_HOST}/metrics" "200"
 
 echo ""
 echo "[*] Active Prometheus Scrape Targets Summary:"
