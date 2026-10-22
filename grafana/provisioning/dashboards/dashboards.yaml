@@ -10,4 +10,15 @@ providers:
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards/definitions
+      path: /etc/grafana/provisioning/dashboards/definitions/cde
+
+  - name: 'iMOPS Dashboards'
+    orgId: 1
+    folder: 'iMOPS Observability'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/definitions/imops

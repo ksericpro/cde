@@ -38,3 +38,22 @@ scrape_configs:
       - targets: ['n8n:5678']
         labels:
           service: 'n8n-workflow-engine'
+
+  # Scrape iMOPS External Host Infrastructure (Node Exporter)
+  - job_name: 'imops-infra'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['10.99.32.54:9100', 'host.docker.internal:9100']
+        labels:
+          service: 'imops-host-infra'
+          environment: 'production'
+
+  # Scrape iMOPS Application API & Node.js Engine
+  - job_name: 'imops-api'
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['10.99.32.54:13000', 'host.docker.internal:13000']
+        labels:
+          service: 'imops-backend-api'
+          environment: 'production'
