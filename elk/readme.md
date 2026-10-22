@@ -1,28 +1,67 @@
 # CDE Centralized Logging (ELK Stack)
 
-This directory contains the Docker Compose stack and configuration pipelines for centralizing logs across Kong Gateway, n8n, Docker daemon containers, and host system services, as detailed in [Phase 8 of the Development Plan](file:///c:/Projects/cde/development_plan.md#phase-8-centralized-logging--log-analytics-elk-stack).
+This directory contains the Docker Compose stack, Logstash pipelines, Filebeat collectors, and automated setup scripts for centralizing, indexing, and visualizing logs across **Kong API Gateway**, **n8n Workflow Engine**, and other CDE/iMOPS microservices.
 
 ---
 
-## 1. Objective
+## 1. Architecture & Log Flow
 
-Provide a unified, indexed, and real-time searchable repository for all system events, API Gateway access records, errors, and container logs to accelerate debugging, incident post-mortems, and security compliance audits.
+```
+                      ┌────────────────────────────────────────┐
+                      │            Log Sources                 │
+                      └──────────────────┬─────────────────────┘
+                                         │
+             ┌───────────────────────────┴───────────────────────────┐
+             │                                                       │
+             ▼                                                       ▼
+   [ Kong API Gateway ]                                    [ n8n Workflow Server ]
+ (tcp-log plugin: JSON)                              (stdout / stderr container stream)
+             │                                                       │
+             │ :5000 (TCP/JSON)                                      │ /var/lib/docker/containers/*
+             │                                                       ▼
+             │                                              [ cde-filebeat :8.14.3 ]
+             │                                              (Docker container input)
+             │                                                       │
+             │                                                       │ :5044 (Beats)
+             ▼                                                       ▼
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │                         cde-logstash :8.14.3                            │
+   │  - Parses JSON from Kong Gateway                                        │
+   │  - Normalizes fields & adds metadata (log_source, tags)                 │
+   │  - Dynamic index routing by source                                      │
+   └────────────────────────────────────┬────────────────────────────────────┘
+                                        │
+                                        │ HTTP :9200
+                                        ▼
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │                      cde-elasticsearch :8.14.3                          │
+   │  - Indices:                                                             │
+   │    • cde-kong-logs-YYYY.MM.dd                                           │
+   │    • cde-n8n-logs-YYYY.MM.dd                                            │
+   │    • cde-imops-logs-YYYY.MM.dd                                          │
+   │    • cde-system-logs-YYYY.MM.dd                                         │
+   └────────────────────────────────────┬────────────────────────────────────┘
+                                        │
+                                        │ Web :5601
+                                        ▼
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │                          cde-kibana :8.14.3                             │
+   │  - Preconfigured Data View: cde-*                                       │
+   │  - Discover view: search by path, latency, status, error                │
+   └─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 2. Architecture
+## 2. Ports & Endpoints
 
-```
- [ Kong Access/Error Logs (HTTP / TCP Log Plugin) ] ──┐
- [ Docker Container Logs (stdout/stderr via Filebeat) ] ──┼──► [ Logstash :5044 ] ──► [ Elasticsearch :9200 ] ──► [ Kibana :5601 ]
- [ Host System Logs (/var/log/syslog, auth.log, ufw) ] ──┘     (Filter / Grok / JSON)   (Indexed Store: cde-logs-*)  (Search, Discovery, UI)
-```
-
-- **Elasticsearch (`:9200`)**: Distributed indexing & search cluster storing structured logs partitioned by date (`cde-logs-YYYY.MM.DD`).
-- **Kibana (`:5601`)**: Web query & visualization UI for searching logs, tracing request IDs, and filtering error codes.
-- **Logstash (`:5044 Beats`, `:5000 TCP/JSON`)**: Pipeline engine extracting, filtering, and parsing structured fields from incoming streams.
-- **Filebeat**: Lightweight container agent tailing Docker container logs (`/var/lib/docker/containers/*/*.log`) and host log files.
-- **Kong TCP / HTTP Log Plugin**: Ships structured API request logs directly from Kong to Logstash.
+| Service | Internal Host / Port | External / Host Port | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Elasticsearch** | `cde-elasticsearch:9200` | `http://localhost:9200` | REST API, search, index management |
+| **Kibana** | `cde-kibana:5601` | `http://localhost:5601` | Web UI, Discover log analytics |
+| **Logstash (Kong TCP)** | `cde-logstash:5000` | `localhost:5000` | Kong `tcp-log` ingress endpoint |
+| **Logstash (Filebeat)** | `cde-logstash:5044` | `localhost:5044` | Beats ingress for container logs |
+| **Logstash API** | `cde-logstash:9600` | `localhost:9600` | Logstash monitoring & pipeline API |
 
 ---
 
@@ -30,33 +69,148 @@ Provide a unified, indexed, and real-time searchable repository for all system e
 
 ```
 elk/
-├── docker-compose.yml
+├── docker-compose.yml              # Single-node ELK + Filebeat compose stack
+├── readme.md                       # Documentation & runbook
 ├── logstash/
 │   ├── config/
-│   │   └── logstash.yml
+│   │   └── logstash.yml            # Pipeline settings & monitoring
 │   └── pipeline/
-│       └── logstash.conf
-└── filebeat/
-    └── filebeat.yml
+│       └── logstash.conf           # Inputs (5000 TCP, 5044 Beats) & routing logic
+├── filebeat/
+│   └── filebeat.yml                # Docker container harvester config
+└── scripts/
+    ├── deploy_elk.ps1              # One-click startup script (PowerShell)
+    ├── deploy_elk.sh               # One-click startup script (Bash)
+    ├── enable_kong_logstash.ps1    # Configures Kong tcp-log plugin (PowerShell)
+    ├── enable_kong_logstash.sh     # Configures Kong tcp-log plugin (Bash)
+    └── verify_elk.ps1              # Checks container status, indices & counts
 ```
 
 ---
 
-## 4. Quick Start
+## 4. Quick Start & Deployment
 
-1. Start the ELK stack:
-   ```bash
-   docker compose up -d
-   ```
-2. Stream Kong Gateway access logs to Logstash:
-   ```bash
-   curl -X POST http://localhost:8001/plugins \
-     -d "name=tcp-log" \
-     -d "config.host=cde-logstash" \
-     -d "config.port=5000" \
-     -d "config.tls=false"
-   ```
-3. Open Kibana in browser:
-   - URL: **http://localhost:5601**
-   - Create Data View (Index Pattern): `cde-*`
-   - Explore in **Discover** view.
+### Step 1: Launch ELK Stack
+```powershell
+powershell -ExecutionPolicy Bypass -File elk/scripts/deploy_elk.ps1
+```
+*Or via Docker Compose directly:*
+```bash
+docker compose -f elk/docker-compose.yml up -d
+```
+
+### Step 2: Configure Kong Gateway Log Shipping
+Run the provisioning script to register the global `tcp-log` plugin on Kong Admin API:
+```powershell
+powershell -ExecutionPolicy Bypass -File elk/scripts/enable_kong_logstash.ps1
+```
+*Or via cURL directly:*
+```bash
+curl -X POST http://localhost:8001/plugins \
+  -d "name=tcp-log" \
+  -d "config.host=cde-logstash" \
+  -d "config.port=5000" \
+  -d "config.tls=false"
+```
+
+### Step 3: Verify Log Ingestion
+Run the verification script:
+```powershell
+powershell -ExecutionPolicy Bypass -File elk/scripts/verify_elk.ps1
+```
+
+Or query Elasticsearch indices directly:
+```bash
+curl http://localhost:9200/_cat/indices/cde-*?v
+```
+
+---
+
+## 5. Viewing Logs in Kibana
+
+1. Open **[http://localhost:5601](http://localhost:5601)** in your browser.
+2. Navigate to **Discover**:
+   - Direct Link: **[http://localhost:5601/app/discover](http://localhost:5601/app/discover)**
+3. The default Data View **`cde-*`** is pre-configured and covers all indices:
+   - `cde-kong-logs-*`
+   - `cde-n8n-logs-*`
+   - `cde-imops-logs-*`
+   - `cde-system-logs-*`
+
+### Useful Discover Search Queries (KQL)
+
+- **Find all Kong Gateway logs:**
+  ```kql
+  log_source: "kong-gateway"
+  ```
+- **Find Kong requests with HTTP 4xx or 5xx status:**
+  ```kql
+  log_source: "kong-gateway" and response.status >= 400
+  ```
+- **Filter requests routed to n8n:**
+  ```kql
+  service.name: "imops-proscalar-n8n-service"
+  ```
+- **Find slow requests (latency > 500ms):**
+  ```kql
+  latencies.request > 500
+  ```
+- **Find all n8n workflow logs:**
+  ```kql
+  log_source: "n8n-workflow-engine"
+  ```
+- **Find errors inside n8n logs:**
+  ```kql
+  log_source: "n8n-workflow-engine" and (message: "error" or message: "Bad request")
+  ```
+
+---
+
+## 6. Log Schemas
+
+### Kong Gateway Log Record (`cde-kong-logs-*`)
+```json
+{
+  "@timestamp": "2026-10-22T06:46:05.043Z",
+  "log_source": "kong-gateway",
+  "client_ip": "172.21.0.1",
+  "request": {
+    "method": "POST",
+    "uri": "/api/proscalar/webhook",
+    "id": "45cec47f137a6e4c8b2ae65b64e7ab67",
+    "headers": { "content-type": "application/json", "user-agent": "curl/8.21.0" }
+  },
+  "response": {
+    "status": 401,
+    "size": 432
+  },
+  "latencies": {
+    "kong": 6,
+    "request": 6,
+    "proxy": -1
+  },
+  "service": {
+    "name": "imops-proscalar-n8n-service",
+    "host": "n8n-server",
+    "port": 5678
+  },
+  "route": {
+    "name": "proscalar-webhook-route",
+    "paths": ["/api/proscalar/webhook"]
+  }
+}
+```
+
+### n8n Workflow Log Record (`cde-n8n-logs-*`)
+```json
+{
+  "@timestamp": "2026-10-22T06:44:10.343Z",
+  "log_source": "n8n-workflow-engine",
+  "container": {
+    "name": "n8n-server",
+    "image": { "name": "docker.n8n.io/n8nio/n8n:latest" }
+  },
+  "stream": "stdout",
+  "message": "Bad request - please check your parameters"
+}
+```
