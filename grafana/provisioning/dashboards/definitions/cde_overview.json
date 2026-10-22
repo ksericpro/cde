@@ -84,7 +84,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "expr": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/rootfs\"} or node_filesystem_avail_bytes{mountpoint=\"/\"}) / (node_filesystem_size_bytes{mountpoint=\"/rootfs\"} or node_filesystem_size_bytes{mountpoint=\"/\"}) * 100)",
+          "expr": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/rootfs\"} or node_filesystem_avail_bytes{mountpoint=\"/\"} or node_filesystem_avail_bytes{mountpoint=\"/mnt/host/c\"}) / (node_filesystem_size_bytes{mountpoint=\"/rootfs\"} or node_filesystem_size_bytes{mountpoint=\"/\"} or node_filesystem_size_bytes{mountpoint=\"/mnt/host/c\"}) * 100)",
           "legendFormat": "Disk Used %",
           "refId": "A"
         }
@@ -147,8 +147,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[1m])) * 100",
-          "legendFormat": "{{name}}",
+          "expr": "(sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[1m])) * 100) or (sum by (id) (rate(container_cpu_usage_seconds_total{id=~\"/docker.*\"}[1m])) * 100)",
+          "legendFormat": "{{name}}{{id}}",
           "refId": "A"
         }
       ],
@@ -167,8 +167,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "expr": "sum by (name) (container_memory_working_set_bytes{name!=\"\"})",
-          "legendFormat": "{{name}}",
+          "expr": "(sum by (name) (container_memory_working_set_bytes{name!=\"\"})) or (sum by (id) (container_memory_working_set_bytes{id=~\"/docker.*\"}))",
+          "legendFormat": "{{name}}{{id}}",
           "refId": "A"
         }
       ],
@@ -273,13 +273,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "expr": "sum(rate(n8n_execution_success_total[1m])) or sum(rate(n8n_execution_total{status=\"success\"}[1m]))",
+          "expr": "sum(rate(n8n_workflow_execution_duration_seconds_count{status=\"success\"}[1m])) or sum(rate(n8n_execution_success_total[1m])) or sum(rate(n8n_execution_total{status=\"success\"}[1m]))",
           "legendFormat": "Success",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "expr": "sum(rate(n8n_execution_failed_total[1m])) or sum(rate(n8n_execution_total{status=\"error\"}[1m]))",
+          "expr": "sum(rate(n8n_workflow_execution_duration_seconds_count{status=\"failed\"}[1m])) or sum(rate(n8n_execution_failed_total[1m])) or sum(rate(n8n_execution_total{status=\"error\"}[1m]))",
           "legendFormat": "Failed",
           "refId": "B"
         }
@@ -337,13 +337,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "expr": "n8n_workflow_active_count or n8n_active_workflows or count(n8n_workflow_info)",
+          "expr": "sum(n8n_active_workflow_count) or count(n8n_workflow_info) or vector(0)",
           "legendFormat": "Active Workflows",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "Prometheus" },
-          "expr": "n8n_execution_running_total or count(n8n_workflow_execution_running) or 0",
+          "expr": "sum(n8n_execution_running_total) or vector(0)",
           "legendFormat": "Running Executions",
           "refId": "B"
         }
