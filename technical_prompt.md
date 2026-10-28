@@ -111,6 +111,50 @@ Data Ingestion ──► Data Cleansing ──► Feature Enrichment ──► M
 6. **Publish & Actionable Insights**:
    - Dispatches notifications via iMOPS command center, mobile push, and real-time visual warning indicators on the 3D WebGL Digital Twin.
 
+### 5.2 Cognitive Infrastructure Growth Forecasting, Log Issue Mining & AI Recommendations
+
+This operational AI loop continuously monitors the CDE infrastructure itself to proactively predict capacity exhaustion, identify hidden system defects, and recommend optimizations:
+
+```
+[Prometheus TSDB + ELK Logs] 
+              │
+              ▼
+   [Log Mining & Clustering] ──────┐
+   (Drain / LogBERT / ES ML)       │
+              │                    ▼
+              │        [Cross-Correlation & RCA Engine] ──► [AI Recommendation Advisor]
+              │        (Correlates Log Spikes & Metric Drift) (LLM / Prescriptive Rules)
+              ▼                    ▲                                      │
+ [Capacity Growth Forecasting] ────┘                                      ▼
+ (Prophet / Holt-Winters 30-90d)                      [Automated Remediation / Alerts]
+                                                      (Slack / n8n / Jira / iMOPS SOP)
+```
+
+1. **Dual-Telemetry Ingestion**:
+   - **Time-Series Resource Metrics**: Scraped from Prometheus TSDB (Node Exporter CPU/RAM/Disk IOPS, MinIO volume fill rate, Kong API RPS and P99 latency).
+   - **Semi-Structured Log Feeds**: Streamed from Elasticsearch (Kong access/error logs, n8n workflow failures, iMOPS container logs, PostgreSQL slow queries).
+2. **Predictive Capacity & Growth Forecasting**:
+   - Uses time-series trend algorithms (Facebook Prophet, Holt-Winters, ARIMA) over 30, 60, and 90-day horizons.
+   - Accurately projects:
+     - Days until disk saturation on MinIO S3 object storage based on telemetry ingestion rates.
+     - Expected API throughput scaling requirements on Kong Gateway.
+     - Memory / thread pool starvation in n8n and PostgreSQL.
+3. **Log-Driven Anomaly Mining & Pattern Identification**:
+   - Unsupervised log parsing (Drain algorithm or LogBERT embeddings) clusters millions of raw log entries into distinct message templates.
+   - Automatically detects:
+     - Novel unhandled exception signatures.
+     - Sudden surges in 4xx/5xx HTTP responses across Kong routes.
+     - Latent cascading timeouts between n8n webhook nodes and upstream edge APIs.
+4. **Cross-Correlation & Root Cause Analysis (RCA)**:
+   - Correlates timestamp-aligned log anomalies with metric deviations (e.g., a burst of `504 Gateway Timeout` in Kong mapped to thread exhaustion in iMOPS backend).
+5. **Cognitive Recommendation & Prescriptive Advisory Engine**:
+   - An AI/LLM-assisted recommendation service evaluates RCA outputs and suggests precise operational next actions:
+     - *Infra Scaling*: "MinIO bucket `bronze-raw` will hit 95% capacity in 18 days; recommend enabling S3 lifecycle transition to cold tier."
+     - *Gateway Optimization*: "Kong route `/api/v1/sicc` p99 latency increased by 140ms due to upstream JSON transformer overhead; suggest caching or rate-limiting adjustments."
+     - *Workflow Tuning*: "n8n workflow `proscalar_poller` experiencing 12% overlapping timeouts; recommend adjusting poll interval from 30s to 45s or adding Redis concurrency gate."
+6. **Closed-Loop Action & Remediation**:
+   - Dispatches prioritized recommendations to DevOps channels (Slack/Teams, Jira tickets) or triggers automated self-healing n8n maintenance workflows.
+
 ---
 
 ## 6. Detailed Prompts for Drawing Diagrams in ChatGPT
@@ -242,3 +286,38 @@ Lifecycle Stages to illustrate:
 
 Use an elegant left-to-right flow with color-coded stages for Ingestion, Processing, ML Inference, and Action.
 ```
+
+---
+
+### Prompt 6: Cognitive Infrastructure Growth Forecasting, Log Issue Mining & AI Recommendation Engine
+```text
+Act as a Senior AIOps & SRE Architect. Generate a high-resolution, modular Mermaid.js diagram illustrating an AI-driven Infrastructure Capacity Forecasting, Log Issue Identification, and Automated Recommendation Engine for a Common Data Environment (CDE).
+
+The diagram must model a closed-loop intelligence architecture across 5 connected functional tiers:
+
+1. Telemetry & Log Ingestion Tier:
+   - Time-Series Metrics Sources: Node Exporter (Host CPU, RAM, Disk I/O), cAdvisor (Docker container resource limits), MinIO Metrics (bucket volume growth rate), Kong Prometheus Plugin (RPS, upstream latency P95/P99, 4xx/5xx error rates).
+   - Log Stream Sources: Kong access/error logs, n8n workflow execution traces, iMOPS backend exception traces, PostgreSQL slow query logs -> Logstash / Filebeat -> Elasticsearch cluster.
+
+2. Machine Learning & Predictive Analytics Tier:
+   - Sub-Engine A: Capacity Growth Forecasting (Facebook Prophet / Holt-Winters time-series regression analyzing 30/60/90-day historical trends to forecast days-to-saturation for MinIO disk volumes, memory consumption, and API threshold breaches).
+   - Sub-Engine B: Log Pattern Mining & Unsupervised Clustering (Drain algorithm / LogBERT clustering raw logs into semantic templates, detecting novel error signatures, burst frequency spikes, and silent upstream failures).
+
+3. Cognitive Correlation & Root Cause Analysis (RCA) Engine:
+   - Temporal Cross-Correlation: Synchronizes timestamped log clusters with metric anomalies.
+   - Example RCA Correlation: Maps Kong '504 Gateway Timeout' burst to n8n concurrency bottlenecks and PostgreSQL connection pool starvation.
+
+4. Prescriptive AI Recommendation Advisor (LLM / Rule-Based Expert System):
+   - Ingests RCA outputs and generates specific, actionable engineering recommendations:
+     * Storage Advisory: "MinIO bucket 'bronze-lake' projected to exhaust storage in 18 days; trigger automated lifecycle transition to cold tier."
+     * Gateway Advisory: "Kong route '/api/v1/sicc' P99 latency up 140ms due to upstream payload transformer; recommend enabling response cache or adjusting worker processes."
+     * Workflow Advisory: "n8n 'proscalar_poller' experiencing overlapping timeouts; recommend shifting poll interval from 30s to 45s or adding Redis concurrency gate."
+
+5. Actionable Closed-Loop Execution Tier:
+   - Proactive Alerts: High-priority Slack/Teams alerts with Next-Best-Action (NBA) remediation steps.
+   - SRE Ticketing: Automated creation of Jira / GitHub tickets with correlated log snippets and metric graphs.
+   - Automated Self-Healing: n8n automated maintenance workflows executing non-destructive remediation (e.g., cache flushing, log archiving, replica scaling).
+
+Use clear Mermaid subgraphs with distinct visual borders, bidirectional feedback loops, and descriptive line labels.
+```
+
