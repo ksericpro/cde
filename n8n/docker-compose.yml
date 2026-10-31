@@ -31,6 +31,11 @@ services:
       - PROSCALAR_TO_IMOPS_API=${PROSCALAR_TO_IMOPS_API:-http://host.docker.internal:13000}
       - PROSCALAR_TO_IMOPS_AUTH=${PROSCALAR_TO_IMOPS_AUTH:-Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg==}
       - BACKEND_API=${BACKEND_API:-${PROSCALAR_TO_IMOPS_API:-http://host.docker.internal:13000}}
+      # Proscalar TPI (door poll workflow — outbound to Proscalar LAN)
+      - PROSCALAR_TPI_BASE_URL=${PROSCALAR_TPI_BASE_URL:-}
+      - PROSCALAR_TPI_ACCOUNT_ID=${PROSCALAR_TPI_ACCOUNT_ID:-}
+      - PROSCALAR_TPI_CLIENT_SECRET=${PROSCALAR_TPI_CLIENT_SECRET:-}
+      - PROSCALAR_TPI_INSECURE_TLS=${PROSCALAR_TPI_INSECURE_TLS:-true}
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     extra_hosts:
       - "host.docker.internal:host-gateway"
