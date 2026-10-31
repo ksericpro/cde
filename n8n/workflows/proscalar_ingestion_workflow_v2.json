@@ -366,8 +366,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1760,
-        300
+        1080,
+        320
       ]
     },
     {
@@ -457,15 +457,37 @@
         ]
       ]
     },
-    "Is Ignored Code?": {
+    "Door Office Hours Suppress": {
       "main": [
         [
           {
             "node": "Respond to Webhook",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Suppressed (office hours)?",
+            "type": "main",
+            "index": 0
           }
-        ],
+        ]
+      ]
+    },
+    "Suppressed (office hours)?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Is Ignored Code?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Ignored Code?": {
+      "main": [
+        [],
         [
           {
             "node": "Is Idle Code?",
@@ -497,6 +519,11 @@
       "main": [
         [
           {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Is Ignored Group Event?",
             "type": "main",
             "index": 0
@@ -506,13 +533,7 @@
     },
     "Is Ignored Group Event?": {
       "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ],
+        [],
         [
           {
             "node": "Is Group Resolution?",
@@ -534,79 +555,6 @@
         [
           {
             "node": "Create Group Incident",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Door Office Hours Suppress": {
-      "main": [
-        [
-          {
-            "node": "Suppressed (office hours)?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Suppressed (office hours)?": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Is Ignored Code?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Create Point Incident": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Resolve Point Incident": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Create Group Incident": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Resolve Group Incident": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
