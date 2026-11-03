@@ -76,6 +76,23 @@ services:
     depends_on:
       - logstash
 
+  docker-log-streamer:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: cde-docker-log-streamer
+    user: root
+    restart: unless-stopped
+    entrypoint: ["node", "/app/docker_sock_streamer.js"]
+    environment:
+      - ES_HOST=elasticsearch
+      - ES_PORT=9200
+    volumes:
+      - ./filebeat/docker_sock_streamer.js:/app/docker_sock_streamer.js:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - cde-network
+    depends_on:
+      - elasticsearch
+
 volumes:
   es_data:
     name: cde_es_data

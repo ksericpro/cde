@@ -112,3 +112,37 @@ Prometheus handles scraping the external iMOPS host and API. Grafana automatical
    docker restart cde-prometheus
    ```
 *(No changes are needed in Grafana; the dashboards will automatically display data from the updated IP).*
+
+---
+
+## 5. Exporting Data & Sharing Dashboards in Grafana
+
+### Option 1: Export a Panel's Data to CSV (For Excel / Analysts)
+In Grafana (`http://localhost:3000`), CSV data is exported per chart/table:
+1. Open either the **CDE - Infrastructure, Kong Gateway & n8n Overview** dashboard or the **iMOPS - External Infrastructure & API Observability** dashboard.
+2. Hover over the chart or table you want to export (e.g., *iMOPS API HTTP Status Breakdown* or *n8n Workflow Executions*).
+3. Click the **`⋮` (three vertical dots)** icon in the **top-right corner of that panel**.
+4. Select **Inspect** $\rightarrow$ **Data**.
+5. *(Optional)* If the panel has multiple series, expand **Data options** and select **Series joined by time** and toggle **Formatted data**.
+6. Click **Download CSV**.
+
+### Option 2: Share an Interactive Dashboard Snapshot (For External Stakeholders)
+To share the entire dashboard with all data points frozen at a point in time (even with people who cannot access your local network or Prometheus):
+1. Set the desired time window in the top-right corner (e.g., `Last 1 hour` or `Last 24 hours`).
+2. Click **Share** in the **top navigation bar** (next to the dashboard title).
+3. Switch to the **Snapshot** tab.
+4. Set an **Expire** duration (e.g., `1 Day` or `7 Days`).
+5. Click **Publish to snapshots.raintank.io** (generates a public read-only link) or **Local Snapshot** (saves a read-only snapshot on your Grafana instance).
+
+### Option 3: Export the Full Dashboard to PDF (Visual Report)
+1. Open the dashboard and click the **TV / Kiosk icon** in the top-right corner (or press **`d` then `k`** on your keyboard) to hide menus and sidebars.
+2. Press **`Ctrl + P`** in your browser.
+3. Set Destination to **Save as PDF**, Orientation to **Landscape**, and enable **Background graphics**.
+
+### Option 4: Export Dashboard Layout (JSON) or Bulk Prometheus Metrics (CLI)
+- **Dashboard JSON:** Click **Share** (top navigation bar) $\rightarrow$ **Export** tab $\rightarrow$ **Save to file** *(or use the versioned JSON files directly in `provisioning/dashboards/definitions/cde/cde_overview.json` and `provisioning/dashboards/definitions/imops/imops_overview.json`)*.
+- **Prometheus HTTP API Bulk Export:**
+  ```powershell
+  # Export 24h of Kong / iMOPS request rates by HTTP status code at 5-minute intervals
+  curl.exe -G -s "http://localhost:9090/api/v1/query_range" --data-urlencode "query=sum(rate(kong_http_requests_total[5m])) by (service, code)" --data-urlencode "start=2026-11-02T00:00:00Z" --data-urlencode "end=2026-11-03T00:00:00Z" --data-urlencode "step=5m" -o prom_metrics_export.json
+  ```

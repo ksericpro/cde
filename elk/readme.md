@@ -79,13 +79,16 @@ elk/
 │   └── pipeline/
 │       └── logstash.conf           # Inputs (5000 TCP, 5044 Beats) & routing logic
 ├── filebeat/
-│   └── filebeat.yml                # Docker container harvester config
+│   ├── filebeat.yml                # Docker container harvester config
+│   └── docker_sock_streamer.js     # Real-time Docker Socket log streamer (supports Docker Desktop 'local' driver)
 └── scripts/
-    ├── deploy_elk.ps1              # One-click startup script (PowerShell)
-    ├── deploy_elk.sh               # One-click startup script (Bash)
-    ├── enable_kong_logstash.ps1    # Configures Kong tcp-log plugin (PowerShell)
-    ├── enable_kong_logstash.sh     # Configures Kong tcp-log plugin (Bash)
-    └── verify_elk.ps1              # Checks container status, indices & counts
+    ├── deploy_elk.ps1                  # One-click startup script (PowerShell)
+    ├── deploy_elk.sh                   # One-click startup script (Bash)
+    ├── enable_kong_logstash.ps1        # Configures Kong tcp-log plugin (PowerShell)
+    ├── enable_kong_logstash.sh         # Configures Kong tcp-log plugin (Bash)
+    ├── provision_kibana_dashboard.ps1  # Provisions CDE & iMOPS Kibana dashboard and saved searches
+    ├── sync_imops_logs.ps1             # Optional one-time historical backfill of iMOPS container logs
+    └── verify_elk.ps1                  # Checks container status, indices & counts
 ```
 
 ---
@@ -122,7 +125,15 @@ curl -X POST http://localhost:8001/plugins \
   -d "config.tls=false"
 ```
 
-### Step 3: Verify Log Ingestion
+### Step 3: Provision Kibana Dashboard & iMOPS Saved Searches
+
+```powershell
+# Provision Kibana dashboard and iMOPS saved searches
+powershell -ExecutionPolicy Bypass -File elk/scripts/provision_kibana_dashboard.ps1
+```
+*(Note: The `cde-docker-log-streamer` container in `elk/docker-compose.yml` automatically streams live logs from `imops-backend` (`localhost:13000`), `imops-worker`, `imops-frontend`, `n8n-*`, and `kong-*` in real time via `/var/run/docker.sock`—no manual syncing required).*
+
+### Step 4: Verify Log Ingestion
 
 Run the verification script:
 
@@ -138,65 +149,117 @@ curl http://localhost:9200/_cat/indices/cde-*?v
 
 ---
 
-## 5. Accessing Dashboards & Raw Data in Kibana
+## 5. Accessing Dashboards, Filtering & Exporting Data in Kibana
 
 ### Quick Access Links
 
 | View | Direct URL | Description |
 | :--- | :--- | :--- |
-| 📊 **CDE Platform Overview Dashboard** | **[http://localhost:5601/app/dashboards#/view/cde-platform-overview](http://localhost:5601/app/dashboards#/view/cde-platform-overview)** | Prebuilt charts (volume, distribution) + live raw log stream |
+| 📊 **CDE Platform Overview Dashboard** | **[http://localhost:5601/app/dashboards#/view/cde-platform-overview](http://localhost:5601/app/dashboards#/view/cde-platform-overview)** | Prebuilt charts (volume, iMOPS services, HTTP 200 vs 4xx/5xx status) + live iMOPS & CDE log tables |
+| 🚨 **iMOPS API & Incident Logs (Success & Error)** | **[http://localhost:5601/app/discover#/view/imops-live-logs](http://localhost:5601/app/discover#/view/imops-live-logs)** | Pre-filtered saved search for all iMOPS requests (`service.name: *imops*`) with route, status, and latency columns |
+| 📋 **CDE Live Raw Logs Search** | **[http://localhost:5601/app/discover#/view/cde-live-raw-logs](http://localhost:5601/app/discover#/view/cde-live-raw-logs)** | Unified saved search across Kong, iMOPS, n8n, and CDE containers |
 | 🔍 **Raw Data Explorer (Discover)** | **[http://localhost:5601/app/discover](http://localhost:5601/app/discover)** | Dedicated query interface to search, filter, and tail raw JSON documents |
-| 📋 **CDE Live Raw Logs Search** | **[http://localhost:5601/app/discover#/view/cde-live-raw-logs](http://localhost:5601/app/discover#/view/cde-live-raw-logs)** | Saved search with timestamp, source, container, and message columns |
 
 ---
 
-### How to View Raw Application Logs
+### What ELK Ingests vs. What Is Filtered Out
 
-#### Method A: Directly from the Dashboard
-1. Open the **[CDE Platform Overview Dashboard](http://localhost:5601/app/dashboards#/view/cde-platform-overview)**.
-2. Scroll to the **Live Raw Log Stream** panel at the bottom.
-3. Click the small **`>` arrow** on the far-left of any row to expand the document.
-4. Click the **JSON** tab inside the expanded view to inspect or copy the full, unmutated raw JSON payload.
-5. **One-Click Filtering**: Click on any slice of the pie chart or click the `(+)` magnifying glass next to any container name (e.g. `kong-gateway`) to filter the raw log stream instantly to that container.
+Based on `filebeat/filebeat.yml` and `logstash/pipeline/logstash.conf`, ELK uses prefix rules (`^cde-`, `^n8n-`, `^kong-`, `^imops-`) and Kong's `tcp-log` stream:
 
-#### Method B: In the Dedicated "Discover" Tab
-1. Open **[http://localhost:5601/app/discover](http://localhost:5601/app/discover)**.
-2. Ensure the Data View is set to **`CDE Unified Logs (Kong, n8n, System)`** (`cde-*`).
-3. Click any document's **`>` arrow** to view parsed key-value pairs or click **JSON** for the raw format.
+| Application / Source | Mechanism | Ingested? | What Is Captured | Target Index |
+| :--- | :--- | :---: | :--- | :--- |
+| **iMOPS Application (`localhost:13000`)** | `cde-docker-log-streamer` + Filebeat (`imops-backend`, `imops-worker`, `imops-frontend`, `imops-mongodb`, `imops-redis`) | ✅ Yes (Auto Real-Time) | Direct application `stdout`/`stderr` logs (`[DEBUG]`, `[INFO]`, `[ERROR]`, incident processing, DB/Redis logs) streamed live via `/var/run/docker.sock` | `cde-imops-logs-*` |
+| **Kong API Gateway & iMOPS Traffic** | Kong `tcp-log` plugin (`:5000`) | ✅ Yes | Every API request to `localhost:13000` via Kong: `service.name`, `route.name`, `request.uri`, `response.status`, `upstream_status`, `latencies.proxy`, `client_ip` | `cde-kong-logs-*` |
+| **Kong Stack Containers** | Filebeat (`kong-gateway`, `kong-db`, `kong-redis`) | ✅ Yes | Container `stdout`/`stderr` (Nginx worker logs, Postgres, Redis) | `cde-kong-logs-*` |
+| **n8n Workflow Engine** | Filebeat (`n8n-server`, `n8n-proxy`) | ✅ Yes | Container `stdout`/`stderr` (startup, webhook exceptions, Nginx access logs) | `cde-n8n-logs-*` |
+| **CDE Monitoring & Infra** | Filebeat (`cde-prometheus`, `cde-grafana`, `cde-cadvisor`, `cde-node-exporter`, `cde-elasticsearch`, `cde-kibana`) | ✅ Yes | Container `stdout`/`stderr` health and runtime logs | `cde-system-logs-*` |
+| **External Host / Non-CDE Containers** | Any container not starting with `cde-`, `n8n-`, `kong-`, or `imops-` | ❌ Dropped | Dropped by `filebeat.yml` and `logstash.conf` (`drop { }`) unless added to the filter rules | — |
 
 ---
 
 ### Useful Search & Filtering Queries (KQL)
 
-- **Filter by Application / Container:**
+Paste any of the following into the top KQL search bar (`Filter your data using KQL syntax`) in Kibana **Discover** or **Dashboard**:
+
+#### A. iMOPS Application (`localhost:13000`) & API Traffic
+- **All iMOPS Logs (Direct `imops-backend` `:13000` App Logs + Kong API Calls):**
+  ```kql
+  log_source: "imops-application" or container.name: imops-* or (service.name: *imops* and not service.name: *n8n*)
+  ```
+- **Only Direct `imops-backend` (`localhost:13000`) Application Logs:**
+  ```kql
+  container.name: "imops-backend"
+  ```
+- **Only Direct `imops-worker` Background Job Logs:**
+  ```kql
+  container.name: "imops-worker"
+  ```
+- **Only iMOPS API SUCCESS (`200–299`):**
+  ```kql
+  service.name: *imops* and not service.name: *n8n* and response.status >= 200 and response.status < 300
+  ```
+- **Only iMOPS ERRORS (API `400+` or `imops-backend` App Errors):**
+  ```kql
+  (service.name: *imops* and not service.name: *n8n* and response.status >= 400) or (container.name: imops-* and message: (*ERROR* or *WARN* or *fail* or *Exception*))
+  ```
+
+#### B. Combined iMOPS + n8n (Success vs. Error)
+- **All iMOPS & n8n Logs:**
+  ```kql
+  service.name: *imops* or log_source: "n8n-workflow-engine" or request.uri: (*proscalar* or *va*)
+  ```
+- **Only iMOPS & n8n SUCCESS (`200–299`):**
+  ```kql
+  (service.name: *imops* or request.uri: (*proscalar* or *va*)) and response.status >= 200 and response.status < 300
+  ```
+- **Only iMOPS & n8n ERRORS (`4xx`/`5xx` or n8n Exceptions):**
+  ```kql
+  ((service.name: *imops* or request.uri: (*proscalar* or *va*)) and response.status >= 400) or (log_source: "n8n-workflow-engine" and message: (*error* or *fail* or *exception* or *500* or *502*))
+  ```
+
+#### C. General Container & Performance Filters
+- **Filter by Container:**
   ```kql
   container.name: "kong-gateway"
   ```
   ```kql
   container.name: "n8n-server"
   ```
-  ```kql
-  container.name: "cde-elasticsearch"
-  ```
-- **Find all Kong Gateway logs:**
-  ```kql
-  log_source: "kong-gateway" or log_source: "kong-service"
-  ```
-- **Find Kong requests with HTTP 4xx or 5xx status:**
-  ```kql
-  response.status >= 400
-  ```
-- **Find slow Kong requests (latency > 500ms):**
+- **Find slow Kong / iMOPS requests (latency > 500ms):**
   ```kql
   latencies.request > 500
   ```
-- **Find all n8n workflow logs:**
-  ```kql
-  log_source: "n8n-workflow-engine" or container.name: "*n8n*"
-  ```
-- **Find errors across any container:**
-  ```kql
-  message: (*error* or *fail* or *exception*) or response.status >= 500
+
+---
+
+### How to View & Export Raw Data (CSV & JSON) in Kibana
+
+#### 1. Which Columns Contain the Log Message Body & Status?
+When viewing or exporting logs in Kibana Discover, use these fields from the left sidebar:
+
+| Field / Column Name | What It Contains | Applies To |
+| :--- | :--- | :--- |
+| **`_source`** *(default if no columns added)* | The entire raw JSON document for that row | All logs |
+| **`message`** | **The raw text log body** (stdout/stderr messages, error stack traces) | All Docker containers (`n8n-server`, `kong-gateway`, `cde-*`) |
+| **`service.name`** | Target Kong service (`imops-sicc-incident-service`, `imops-proscalar-n8n-service`, `imops-dors-incident-service`) | Kong / iMOPS API logs |
+| **`request.method`** & **`request.uri`** | HTTP method (`POST`/`GET`) and endpoint called (e.g. `/va/sov-38alt-...`, `/api/proscalar/webhook`) | Kong / iMOPS API logs |
+| **`response.status`** & **`upstream_status`** | HTTP status code (**`200` = Success**, **`400`/`401`/`429`/`500`/`502` = Error**) | Kong / iMOPS API logs |
+| **`latencies.proxy`** / **`latencies.request`** | Upstream iMOPS processing time and total request latency (in ms) | Kong / iMOPS API logs |
+| **`container.name`** | Docker container name (`n8n-server`, `kong-gateway`, `cde-cadvisor`) | Filebeat container logs |
+
+#### 2. Export Logs to a CSV File
+1. Open **[iMOPS Live Logs](http://localhost:5601/app/discover#/view/imops-live-logs)** or **[CDE Live Raw Logs](http://localhost:5601/app/discover#/view/cde-live-raw-logs)** in Kibana Discover.
+2. *(Optional)* Apply any KQL filter in the top search bar and add/remove columns via the **`+`** icon on the left sidebar.
+3. Click **Save** in the top-right corner *(Kibana requires the search to be saved before enabling CSV export)*.
+4. Click **Share** (top-right toolbar) $\rightarrow$ **CSV Reports** $\rightarrow$ **Generate CSV**.
+5. Click **Download** on the toast notification in the bottom-right corner *(or download anytime from **☰ Menu $\rightarrow$ Stack Management $\rightarrow$ Alerts and Insights $\rightarrow$ Reporting**)*.
+
+#### 3. View or Export Raw JSON Payloads
+- **Single Log Row:** Click the **`⇄` / `>` expand icon** on the far-left of any row in the table, then switch to the **JSON** tab to inspect or copy the full raw JSON document.
+- **Bulk JSON Export (No Save Required):** In Discover, click **Inspect** (top-right toolbar) $\rightarrow$ set the dropdown to **View: Requests** $\rightarrow$ click the **Response** tab to copy the raw Elasticsearch JSON array.
+- **CLI Bulk JSON Export:**
+  ```powershell
+  curl.exe -s "http://localhost:9200/cde-kong-logs-*/_search?size=10000" -H "Content-Type: application/json" -d "{\"sort\":[{\"@timestamp\":\"desc\"}]}" -o kong_imops_logs_export.json
   ```
 
 ---

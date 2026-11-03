@@ -20,6 +20,8 @@ filebeat.inputs:
                         container.name: "^n8n-"
                     - regexp:
                         container.name: "^kong-"
+                    - regexp:
+                        container.name: "^imops-"
 
 processors:
   - add_host_metadata: ~
