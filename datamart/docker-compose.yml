@@ -1,0 +1,95 @@
+services:
+  datamart-db:
+    image: postgres:16-alpine
+    container_name: cde-datamart-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cde_datamart}
+      POSTGRES_USER: ${POSTGRES_USER:-cdeadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cdepassword123}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - datamart_pgdata:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cdeadmin} -d ${POSTGRES_DB:-cde_datamart}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      cde-network:
+        aliases:
+          - datamart-db
+          - cde-datamart-db
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: cde-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cdeadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cdepassword123}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - datamart_minio:/data
+    networks:
+      cde-network:
+        aliases:
+          - minio
+          - cde-minio
+
+  datamart-etl:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: cde-datamart-etl
+    restart: unless-stopped
+    entrypoint: ["node", "/etl/imops_datamart_etl.js"]
+    environment:
+      NODE_PATH: /usr/local/lib/node_modules/n8n/node_modules/.pnpm/node_modules
+      ETL_API_PORT: "8090"
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-300000}
+      POSTGRES_HOST: cde-datamart-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-cde_datamart}
+      POSTGRES_USER: ${POSTGRES_USER:-cdeadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cdepassword123}
+      MINIO_ENDPOINT: http://cde-minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cdeadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cdepassword123}
+      IMOPS_BASE_URL: ${IMOPS_BASE_URL:-http://host.docker.internal:13000}
+      IMOPS_BASIC_AUTH_USER: ${IMOPS_BASIC_AUTH_USER:-dors_user@isems.com}
+      IMOPS_BASIC_AUTH_PASS: ${IMOPS_BASIC_AUTH_PASS:-1Pu1znaPbTqXcyC5KVpP}
+      IMOPS_ALT_AUTH_USER: ${IMOPS_ALT_AUTH_USER:-vizzio@imops.local}
+      IMOPS_ALT_AUTH_PASS: ${IMOPS_ALT_AUTH_PASS:-xAJHkkm7m3V5MhtF0xGM}
+      IMOPS_MONGO_URI: ${IMOPS_MONGO_URI:-mongodb://admin:imops_secure_password@host.docker.internal:27017/imops-lite?authSource=admin}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://cde-elasticsearch:9200}
+    ports:
+      - "${ETL_API_PORT:-8090}:8090"
+    volumes:
+      - ./etl:/etl:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      datamart-db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      cde-network:
+        aliases:
+          - datamart-etl
+          - cde-datamart-etl
+
+volumes:
+  datamart_pgdata:
+    name: cde_datamart_pgdata
+  datamart_minio:
+    name: cde_datamart_minio
+
+networks:
+  cde-network:
+    name: cde-network
+    external: true
