@@ -175,20 +175,301 @@ Reviewing your current `c:\Projects\cde` repository against this Data Mart archi
 
 ---
 
-## 5. Phased Implementation Plan
+## 5. 4-Phase Implementation Plan (Ready-to-Execute Blueprint)
 
-### Step 1: Deploy the Data Mart Storage Stack (`datamart/`)
-1. Create `c:\Projects\cde\datamart\docker-compose.yml` with:
-   - **`cde-datamart-db`** (`postgres:16-alpine`, port `5433`) initialized with `init_datamart.sql` creating schemas: `raw`, `silver`, and `mart_security`.
-   - **`cde-minio`** (`cgr.dev/chainguard/minio:latest`, ports `9000`/`9001`) with buckets: `lake-raw`, `lake-curated`, `lake-publish`.
+Below is the step-by-step implementation blueprint for building and launching the Data Mart stack when ready.
 
-### Step 2: Build the Scheduled iMOPS Poller & ETL Pipeline
-1. **Option A (n8n Scheduled Workflow):**
-   - `Schedule Trigger (Every 5m)` $\rightarrow$ `HTTP GET http://imops-backend:3000/api/visualization/incidents?daysBack=7&limit=100` $\rightarrow$ Write Raw JSON to `MinIO (lake-raw)` & `raw.imops_incident_batches` $\rightarrow$ Trigger Silver/Gold SQL transformation.
-2. **Option B (Dedicated Python/Node ETL Worker Container in `datamart/`):**
-   - Lightweight daemon container that polls `/api/visualization/incidents`, `/hierarchy`, `/device-health`, and `/sla` on a configurable cron interval, archives `.json.gz` + `.parquet` to MinIO, and runs the `raw` $\rightarrow$ `silver` $\rightarrow$ `mart_security` upserts and rollups in PostgreSQL.
+### Target Directory Layout (`c:\Projects\cde\datamart\`)
 
-### Step 3: Connect Grafana & Kong Egress to the Published Data Mart
-1. Auto-provision `cde-datamart-db` (`PostgreSQL`) in `grafana/provisioning/datasources/datasources.yaml`.
-2. Add a **Security Incident Data Mart Dashboard** in Grafana showing Daily Incidents by Site/Zone, MTTA/MTTR, SLA Compliance %, and a full exportable Incident Table.
-3. Expose `/api/v1/datamart/security/*` via Kong Gateway (`:8088`) for external consumers and AI Assistants.
+```
+datamart/
+├── docker-compose.yml                  # PostgreSQL 16 (cde-datamart-db) + MinIO (cde-minio) + ETL Service
+├── .env.example                        # Credentials & polling interval config
+├── readme.md                           # Quickstart & verification runbook
+├── sql/
+│   ├── 01_init_schemas_and_tables.sql  # DDL for raw.*, silver.*, and mart_security.*
+│   └── 02_refresh_datamarts.sql        # Stored procedure to recompute Silver -> Gold rollups
+├── etl/
+│   └── imops_datamart_etl.js           # Poller + Bronze/Silver/Gold ETL + REST/CSV Serving API
+└── scripts/
+    ├── deploy_datamart.ps1             # One-click deployment script (PowerShell)
+    ├── enable_kong_datamart.ps1        # Registers /api/v1/datamart/security/* on Kong (:8088)
+    └── verify_datamart.ps1             # Verifies row counts across Raw, Silver, and Gold
+```
+
+---
+
+### Phase 1: Deploy the Data Mart Storage Stack (`datamart/`)
+
+#### 1.1 `datamart/docker-compose.yml`
+Uses locally cached images (`postgres:16-alpine` and `cgr.dev/chainguard/minio:latest`):
+
+```yaml
+services:
+  datamart-db:
+    image: postgres:16-alpine
+    container_name: cde-datamart-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cde_datamart
+      POSTGRES_USER: cdeadmin
+      POSTGRES_PASSWORD: cdepassword123
+    ports:
+      - "5433:5432"
+    volumes:
+      - datamart_pgdata:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdeadmin -d cde_datamart"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cde-network
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: cde-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: cdeadmin
+      MINIO_ROOT_PASSWORD: cdepassword123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - datamart_minio:/data
+    networks:
+      - cde-network
+
+volumes:
+  datamart_pgdata:
+  datamart_minio:
+
+networks:
+  cde-network:
+    name: cde-network
+    external: true
+```
+
+#### 1.2 Database Initialization DDL (`datamart/sql/01_init_schemas_and_tables.sql`)
+
+```sql
+-- Create the 3 Medallion Zones
+CREATE SCHEMA IF NOT EXISTS raw;
+CREATE SCHEMA IF NOT EXISTS silver;
+CREATE SCHEMA IF NOT EXISTS mart_security;
+
+-- ============================================================================
+-- ZONE 1: RAW (BRONZE)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS raw.imops_api_payloads (
+    batch_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    endpoint       VARCHAR(120) NOT NULL,
+    site_name      VARCHAR(100),
+    pulled_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    record_count   INTEGER NOT NULL DEFAULT 0,
+    s3_object_key  TEXT,
+    raw_payload    JSONB NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.etl_watermarks (
+    source_name          VARCHAR(80) PRIMARY KEY,
+    last_polled_at       TIMESTAMPTZ NOT NULL,
+    last_status          VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
+    records_processed    INTEGER NOT NULL DEFAULT 0
+);
+
+-- ============================================================================
+-- ZONE 2: CURATED (SILVER — STAR SCHEMA)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS silver.dim_location (
+    location_key   VARCHAR(64) PRIMARY KEY,
+    site_id        VARCHAR(64),
+    site_name      VARCHAR(120) NOT NULL,
+    building_id    VARCHAR(64),
+    building_name  VARCHAR(120),
+    floor_id       VARCHAR(64),
+    floor_name     VARCHAR(120),
+    zone_id        VARCHAR(64),
+    zone_name      VARCHAR(120),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS silver.dim_device (
+    device_key             VARCHAR(64) PRIMARY KEY,
+    device_id              VARCHAR(64),
+    device_name            VARCHAR(120) NOT NULL,
+    device_type            VARCHAR(60) DEFAULT 'CCTV',
+    location_key           VARCHAR(64) REFERENCES silver.dim_location(location_key),
+    current_health_status  VARCHAR(40) DEFAULT 'online',
+    updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS silver.fact_incidents_current (
+    incident_number    VARCHAR(50) PRIMARY KEY,
+    event_id           VARCHAR(64),
+    location_key       VARCHAR(64) REFERENCES silver.dim_location(location_key),
+    device_key         VARCHAR(64) REFERENCES silver.dim_device(device_key),
+    site_name          VARCHAR(120),
+    building_name      VARCHAR(120),
+    floor_name         VARCHAR(120),
+    zone_name          VARCHAR(120),
+    device_name        VARCHAR(120),
+    incident_type      VARCHAR(80) NOT NULL,
+    title              TEXT,
+    severity           VARCHAR(20) NOT NULL DEFAULT 'medium',
+    status             VARCHAR(30) NOT NULL DEFAULT 'active',
+    operator_name      VARCHAR(100),
+    detected_at        TIMESTAMPTZ NOT NULL,
+    acknowledged_at    TIMESTAMPTZ,
+    resolved_at        TIMESTAMPTZ,
+    mtta_seconds       INTEGER,
+    mttr_seconds       INTEGER,
+    is_sla_breached    BOOLEAN DEFAULT FALSE,
+    source_system      VARCHAR(40) DEFAULT 'imops',
+    first_ingested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS silver.fact_incident_state_history (
+    history_id         BIGSERIAL PRIMARY KEY,
+    incident_number    VARCHAR(50) NOT NULL,
+    old_status         VARCHAR(30),
+    new_status         VARCHAR(30) NOT NULL,
+    severity           VARCHAR(20),
+    operator_name      VARCHAR(100),
+    changed_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
+-- ZONE 3: PUBLISHED (GOLD — BUSINESS DATA MARTS)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mart_security.dm_daily_site_kpis (
+    incident_date        DATE NOT NULL,
+    site_name            VARCHAR(120) NOT NULL,
+    floor_name           VARCHAR(120) NOT NULL DEFAULT 'All',
+    zone_name            VARCHAR(120) NOT NULL DEFAULT 'All',
+    incident_type        VARCHAR(80) NOT NULL,
+    severity             VARCHAR(20) NOT NULL,
+    total_incidents      INTEGER NOT NULL DEFAULT 0,
+    active_count         INTEGER NOT NULL DEFAULT 0,
+    acknowledged_count   INTEGER NOT NULL DEFAULT 0,
+    resolved_count       INTEGER NOT NULL DEFAULT 0,
+    resolution_rate_pct  NUMERIC(5,2) DEFAULT 0,
+    avg_mtta_minutes     NUMERIC(10,2),
+    avg_mttr_minutes     NUMERIC(10,2),
+    sla_breach_count     INTEGER NOT NULL DEFAULT 0,
+    refreshed_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (incident_date, site_name, floor_name, zone_name, incident_type, severity)
+);
+
+CREATE TABLE IF NOT EXISTS mart_security.dm_incident_hotspots (
+    site_name            VARCHAR(120) NOT NULL,
+    zone_name            VARCHAR(120) NOT NULL,
+    device_name          VARCHAR(120) NOT NULL,
+    incident_type        VARCHAR(80) NOT NULL,
+    incident_count_7d    INTEGER NOT NULL DEFAULT 0,
+    incident_count_30d   INTEGER NOT NULL DEFAULT 0,
+    critical_alarm_count INTEGER NOT NULL DEFAULT 0,
+    last_incident_at     TIMESTAMPTZ,
+    refreshed_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (site_name, zone_name, device_name, incident_type)
+);
+
+CREATE TABLE IF NOT EXISTS mart_security.dm_sla_compliance (
+    incident_date        DATE NOT NULL,
+    site_name            VARCHAR(120) NOT NULL,
+    operator_name        VARCHAR(100) NOT NULL DEFAULT 'Unassigned',
+    severity             VARCHAR(20) NOT NULL,
+    incidents_handled    INTEGER NOT NULL DEFAULT 0,
+    within_sla_count     INTEGER NOT NULL DEFAULT 0,
+    breached_sla_count   INTEGER NOT NULL DEFAULT 0,
+    sla_compliance_pct   NUMERIC(5,2) DEFAULT 100.0,
+    fastest_ack_sec      INTEGER,
+    slowest_ack_sec      INTEGER,
+    refreshed_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (incident_date, site_name, operator_name, severity)
+);
+
+CREATE TABLE IF NOT EXISTS mart_security.dm_device_reliability (
+    incident_date              DATE NOT NULL,
+    site_name                  VARCHAR(120) NOT NULL,
+    device_name                VARCHAR(120) NOT NULL,
+    device_type                VARCHAR(60) NOT NULL DEFAULT 'CCTV',
+    offline_events_count       INTEGER NOT NULL DEFAULT 0,
+    incidents_triggered_count  INTEGER NOT NULL DEFAULT 0,
+    current_health_status      VARCHAR(40) DEFAULT 'online',
+    refreshed_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (incident_date, site_name, device_name)
+);
+```
+
+---
+
+### Phase 2: Build the Automated Poller & Medallion ETL Pipeline
+
+The ETL runner executes every **5–15 minutes** (via `cde-datamart-etl` container or `n8n` Schedule Trigger):
+
+1. **Extract (Poll iMOPS `:13000`):**
+   - Calls `GET /api/visualization/hierarchy` to sync sites, buildings, floors, and zones.
+   - Calls `GET /api/visualization/incidents?daysBack=7&page=1..N&limit=100` (iterating pages until all items are retrieved).
+   - Calls `GET /api/visualization/device-health` and `GET /api/visualization/sla`.
+2. **Load Bronze (`raw`):**
+   - Compresses the raw JSON response and uploads `s3://lake-raw/imops/incidents/dt=YYYY-MM-DD/batch_<ts>.json.gz` to `cde-minio`.
+   - Inserts a row into `raw.imops_api_payloads`.
+3. **Transform Silver (`silver`):**
+   - Upserts `silver.dim_location` and `silver.dim_device`.
+   - Upserts each incident into `silver.fact_incidents_current` (`ON CONFLICT (incident_number) DO UPDATE`):
+     - If `NEW.status = 'acknowledged'` and `OLD.acknowledged_at IS NULL`, sets `acknowledged_at = NOW()` and computes `mtta_seconds`.
+     - If `NEW.status = 'resolved'` and `OLD.resolved_at IS NULL`, sets `resolved_at = NOW()` and computes `mttr_seconds`.
+     - If `NEW.status <> OLD.status`, inserts a state transition record into `silver.fact_incident_state_history`.
+   - Writes a partitioned `.parquet` snapshot to `s3://lake-curated/security/fact_incidents/`.
+4. **Refresh Gold (`mart_security`):**
+   - Runs the Gold aggregation query (`02_refresh_datamarts.sql`) to populate `dm_daily_site_kpis`, `dm_incident_hotspots`, `dm_sla_compliance`, and `dm_device_reliability`, and exports Gold Parquet snapshots to `s3://lake-publish/mart_security/`.
+
+---
+
+### Phase 3: Expose the Published Data Mart via Kong API Gateway (`:8088`)
+
+1. **Data Mart Serving Endpoints (JSON & CSV Support):**
+   - `GET /api/v1/datamart/security/daily-kpis?site=<site>&format=json|csv`
+   - `GET /api/v1/datamart/security/hotspots?format=json|csv`
+   - `GET /api/v1/datamart/security/sla-compliance?format=json|csv`
+   - `GET /api/v1/datamart/security/device-reliability?format=json|csv`
+   - `GET /api/v1/datamart/security/incidents?status=active&format=json|csv`
+2. **Register Service & Route on Kong Gateway (`:8001`):**
+   ```powershell
+   # 1. Create Kong Service pointing to the Data Mart Serving API
+   curl.exe -X POST http://localhost:8001/services `
+     -d "name=cde-security-datamart-service" `
+     -d "url=http://cde-datamart-etl:8090"
+
+   # 2. Create Kong Route (/api/v1/datamart/security)
+   curl.exe -X POST http://localhost:8001/services/cde-security-datamart-service/routes `
+     -d "name=security-datamart-route" `
+     -d "paths[]=/api/v1/datamart/security" `
+     -d "strip_path=false"
+   ```
+
+---
+
+### Phase 4: Connect Grafana (`:3000`) for BI Dashboards & 1-Click CSV Export
+
+1. **Add PostgreSQL Datasource in `grafana/provisioning/datasources/datasources.yaml`:**
+   ```yaml
+   - name: CDE Security Data Mart
+     type: postgres
+     uid: CDESecurityDataMart
+     url: cde-datamart-db:5432
+     user: cdeadmin
+     secureJsonData:
+       password: cdepassword123
+     jsonData:
+       database: cde_datamart
+       sslmode: disable
+       postgresVersion: 1600
+   ```
+2. **Provision the Grafana Security Incident Data Mart Dashboard:**
+   - Displays **Daily Incidents by Site & Severity**, **MTTA / MTTR Trend**, **SLA Compliance %**, **Top Camera/Zone Hotspots**, and a full **Security Incidents Table** where any user can click **`⋮` $\rightarrow$ Inspect $\rightarrow$ Data $\rightarrow$ Download CSV**.
