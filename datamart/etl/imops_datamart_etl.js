@@ -37,6 +37,7 @@ const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/c
 // -----------------------------------------------------------------------------
 const PORT = parseInt(process.env.ETL_API_PORT || '8090', 10);
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '300000', 10); // Default: 5 mins
+const ENABLE_INTERNAL_TIMER = String(process.env.ENABLE_INTERNAL_TIMER || 'false').toLowerCase() === 'true';
 
 const PG_CONFIG = {
   host: process.env.POSTGRES_HOST || 'cde-datamart-db',
@@ -878,6 +879,8 @@ const server = http.createServer(async (req, res) => {
       return sendResponse(res, 200, {
         status: 'UP',
         service: 'cde-datamart-etl',
+        orchestrationMode: ENABLE_INTERNAL_TIMER ? 'standalone_internal_timer' : 'hybrid_n8n_orchestrated',
+        n8nWorkflowId: 'CdeImopsDataMart1',
         isSyncRunning,
         pollIntervalMs: POLL_INTERVAL_MS,
         watermarks: wm.rows,
@@ -885,9 +888,10 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // 2. Trigger Immediate ETL Sync
-    if (pathname === '/api/v1/datamart/security/sync' && req.method === 'POST') {
-      const result = await runMedallionEtl('manual_api');
+    // 2. Trigger Immediate ETL Sync (called by n8n Schedule Trigger or manual API)
+    if (pathname === '/api/v1/datamart/security/sync' && (req.method === 'POST' || req.method === 'GET')) {
+      const sourceParam = parsedUrl.searchParams.get('source') || 'n8n_workflow_trigger';
+      const result = await runMedallionEtl(sourceParam);
       return sendResponse(res, 200, result);
     }
 
@@ -1043,15 +1047,21 @@ const server = http.createServer(async (req, res) => {
 // Startup Sequence
 // -----------------------------------------------------------------------------
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[API] CDE Security Data Mart Serving API listening on http://0.0.0.0:${PORT}`);
+  console.log(
+    `[API] CDE Security Data Mart Serving API listening on http://0.0.0.0:${PORT} (mode=${
+      ENABLE_INTERNAL_TIMER ? 'standalone_timer' : 'hybrid_n8n_orchestrated'
+    })`
+  );
   // Run initial ETL poll immediately on startup
   setTimeout(() => {
     runMedallionEtl('startup').catch((err) => console.error('[ETL] Startup run failed:', err));
   }, 1500);
 
-  // Schedule recurring 5-minute polling
-  setInterval(() => {
-    runMedallionEtl('scheduled_interval').catch((err) => console.error('[ETL] Scheduled run failed:', err));
-  }, POLL_INTERVAL_MS);
+  // Only run internal timer if explicitly enabled (in Hybrid mode, n8n workflow CdeImopsDataMart1 triggers /sync every 5 mins)
+  if (ENABLE_INTERNAL_TIMER) {
+    setInterval(() => {
+      runMedallionEtl('scheduled_interval').catch((err) => console.error('[ETL] Scheduled run failed:', err));
+    }, POLL_INTERVAL_MS);
+  }
 });
 

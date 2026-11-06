@@ -1,0 +1,230 @@
+{
+  "id": "CdeImopsDataMart1",
+  "name": "iMOPS Security Incident Poller & Medallion Data Mart ETL",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-trigger",
+      "name": "Every 5 Minutes (Schedule Trigger)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [180, 240]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "datamart-sync",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "node-webhook-datamart-sync",
+      "name": "On-Demand Sync Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [180, 440],
+      "webhookId": "datamart-sync"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || 'http://host.docker.internal:13000' }}/api/visualization/hierarchy",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic ZG9yc191c2VyQGlzZW1zLmNvbToxUHUxem5hUGJUcVhjeUM1S1ZwUA=="
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-poll-hierarchy",
+      "name": "1. Poll iMOPS Hierarchy API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || 'http://host.docker.internal:13000' }}/api/visualization/incidents?daysBack=365&page=1&limit=200",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic ZG9yc191c2VyQGlzZW1zLmNvbToxUHUxem5hUGJUcVhjeUM1S1ZwUA=="
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-poll-incidents",
+      "name": "2. Poll iMOPS Incidents API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || 'http://host.docker.internal:13000' }}/api/visualization/device-health",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic ZG9yc191c2VyQGlzZW1zLmNvbToxUHUxem5hUGJUcVhjeUM1S1ZwUA=="
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-poll-device-health",
+      "name": "3. Poll iMOPS Device Health API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://cde-datamart-etl:8090/api/v1/datamart/security/sync?source=n8n_schedule_poller",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-run-medallion-etl",
+      "name": "4. Execute Medallion ETL (Raw -> Curated -> Published)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://cde-datamart-etl:8090/api/v1/datamart/security/summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-verify-datamart-summary",
+      "name": "5. Verify Published Data Mart Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 320]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes (Schedule Trigger)": {
+      "main": [
+        [
+          {
+            "node": "1. Poll iMOPS Hierarchy API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On-Demand Sync Webhook": {
+      "main": [
+        [
+          {
+            "node": "1. Poll iMOPS Hierarchy API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Poll iMOPS Hierarchy API": {
+      "main": [
+        [
+          {
+            "node": "2. Poll iMOPS Incidents API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Poll iMOPS Incidents API": {
+      "main": [
+        [
+          {
+            "node": "3. Poll iMOPS Device Health API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Poll iMOPS Device Health API": {
+      "main": [
+        [
+          {
+            "node": "4. Execute Medallion ETL (Raw -> Curated -> Published)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Execute Medallion ETL (Raw -> Curated -> Published)": {
+      "main": [
+        [
+          {
+            "node": "5. Verify Published Data Mart Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  }
+}
+
