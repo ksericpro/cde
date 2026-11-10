@@ -834,13 +834,257 @@ async function runMedallionEtl(triggerSource = 'scheduled') {
 }
 
 // -----------------------------------------------------------------------------
-// STEP 4: DATA MART SERVING API (HTTP PORT 8090)
+// STEP 4: DATA MART SERVING API, DATA CATALOGUE & SELF-SERVICE API KEY PORTAL
 // -----------------------------------------------------------------------------
+const KONG_ADMIN_URL = process.env.KONG_ADMIN_URL || 'http://kong-gateway:8001';
+
+function readJsonBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (_) {
+        resolve({});
+      }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
+
+function httpPostFormOrJson(urlString, bodyObj, isJson = true) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(urlString);
+      const payload = isJson
+        ? JSON.stringify(bodyObj)
+        : new URLSearchParams(bodyObj).toString();
+      const req = http.request(
+        {
+          hostname: parsed.hostname,
+          port: parsed.port || 80,
+          path: parsed.pathname + parsed.search,
+          method: 'POST',
+          headers: {
+            'Content-Type': isJson ? 'application/json' : 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(payload),
+          },
+          timeout: 5000,
+        },
+        (res) => {
+          const chunks = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            try {
+              resolve({ ok: res.statusCode >= 200 && res.statusCode < 300 || res.statusCode === 409, status: res.statusCode, data: JSON.parse(raw) });
+            } catch (_) {
+              resolve({ ok: res.statusCode >= 200 && res.statusCode < 300 || res.statusCode === 409, status: res.statusCode, raw });
+            }
+          });
+        }
+      );
+      req.on('error', (err) => resolve({ ok: false, error: err.message }));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ ok: false, error: 'timeout' });
+      });
+      req.write(payload);
+      req.end();
+    } catch (err) {
+      resolve({ ok: false, error: err.message });
+    }
+  });
+}
+
+async function syncConsumerToKong(usernameSlug, apiKey) {
+  try {
+    await httpPostFormOrJson(`${KONG_ADMIN_URL}/consumers`, { username: usernameSlug });
+    const keyRes = await httpPostFormOrJson(`${KONG_ADMIN_URL}/consumers/${encodeURIComponent(usernameSlug)}/key-auth`, { key: apiKey });
+    return keyRes.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function initGovernanceAndKong() {
+  try {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS mart_security.api_consumers (
+        consumer_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        app_name           VARCHAR(120) NOT NULL,
+        requester_email    VARCHAR(150) NOT NULL,
+        department         VARCHAR(100) DEFAULT 'External Consumer',
+        allowed_marts      TEXT[] NOT NULL DEFAULT ARRAY['daily-kpis','hotspots','sla-compliance','device-reliability'],
+        api_key            VARCHAR(80) UNIQUE NOT NULL,
+        status             VARCHAR(20) NOT NULL DEFAULT 'active',
+        kong_synced        BOOLEAN DEFAULT FALSE,
+        requests_count     INTEGER NOT NULL DEFAULT 0,
+        last_used_at       TIMESTAMPTZ,
+        created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pgPool.query(`
+      INSERT INTO mart_security.api_consumers (app_name, requester_email, department, allowed_marts, api_key, status)
+      VALUES ('CDE Executive BI Portal', 'bi-team@cde.local', 'Security Operations BI', ARRAY['daily-kpis','hotspots','sla-compliance','device-reliability'], 'cde_live_demo_2026_key', 'active')
+      ON CONFLICT (api_key) DO NOTHING;
+    `);
+
+    // Provision Kong Service, Route & key-auth plugin if Kong Gateway is reachable
+    const svcRes = await httpPostFormOrJson(`${KONG_ADMIN_URL}/services`, {
+      name: 'cde-security-datamart-service',
+      url: 'http://cde-datamart-etl:8090',
+    });
+    if (svcRes.ok) {
+      await httpPostFormOrJson(`${KONG_ADMIN_URL}/services/cde-security-datamart-service/routes`, {
+        name: 'security-datamart-route',
+        'paths[]': '/api/v1/datamart/security',
+        strip_path: 'false',
+      }, false);
+      await httpPostFormOrJson(`${KONG_ADMIN_URL}/services/cde-security-datamart-service/plugins`, {
+        name: 'key-auth',
+        'config.key_names': 'apikey',
+      }, false);
+    }
+
+    const consumers = (await pgPool.query(`SELECT consumer_id, app_name, api_key FROM mart_security.api_consumers WHERE status = 'active'`)).rows;
+    for (const c of consumers) {
+      const slug = c.app_name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + String(c.consumer_id).substring(0, 6);
+      const synced = await syncConsumerToKong(slug, c.api_key);
+      if (synced) {
+        await pgPool.query(`UPDATE mart_security.api_consumers SET kong_synced = TRUE WHERE consumer_id = $1`, [c.consumer_id]);
+      }
+    }
+    console.log('[Governance] Initialized mart_security.api_consumers and synced with Kong Gateway.');
+  } catch (err) {
+    console.warn('[Governance] Init warning:', err.message);
+  }
+}
+
+function getCatalogueMetadata(counts = {}) {
+  return [
+    {
+      id: 'daily-kpis',
+      tableName: 'mart_security.dm_daily_site_kpis',
+      title: 'Gold Mart 1: Daily Site Security KPIs',
+      tier: 'Published (Gold)',
+      domain: 'Security Operations',
+      steward: 'CDE Data Engineering / SOC',
+      refreshSchedule: 'Every 5 minutes (via n8n Workflow CdeImopsDataMart1)',
+      rowCount: counts.gold_daily_kpis_rows || 0,
+      s3JsonUri: 's3://lake-publish/mart_security/dm_daily_site_kpis/latest.json',
+      s3CsvUri: 's3://lake-publish/mart_security/dm_daily_site_kpis/latest.csv',
+      kongEndpoint: 'http://localhost:8088/api/v1/datamart/security/daily-kpis',
+      directEndpoint: 'http://localhost:8090/api/v1/datamart/security/daily-kpis',
+      description: 'Daily pre-aggregated incident volumes, resolution rates, Mean Time To Acknowledge (MTTA), Mean Time To Resolve (MTTR), and SLA breach counts grouped by Site, Floor, Zone, Incident Type, and Severity.',
+      lineage: 'iMOPS APIs (/visualization/incidents, /api/incidents) -> Bronze (raw.imops_api_payloads) -> Silver (silver.fact_incidents_current) -> Gold (mart_security.dm_daily_site_kpis)',
+      columns: [
+        { name: 'incident_date', type: 'DATE', key: 'PK', desc: 'UTC calendar date of incident detection' },
+        { name: 'site_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Conformed site name (e.g., ISEMS Pte Ltd)' },
+        { name: 'floor_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Building floor level' },
+        { name: 'zone_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Security zone name' },
+        { name: 'incident_type', type: 'VARCHAR(80)', key: 'PK', desc: 'Standardized incident classification' },
+        { name: 'severity', type: 'VARCHAR(20)', key: 'PK', desc: 'Normalized severity (critical, high, medium, low)' },
+        { name: 'total_incidents', type: 'INTEGER', key: '', desc: 'Total incidents detected for this grain' },
+        { name: 'active_count', type: 'INTEGER', key: '', desc: 'Count of currently active/unacknowledged incidents' },
+        { name: 'acknowledged_count', type: 'INTEGER', key: '', desc: 'Count of acknowledged incidents' },
+        { name: 'resolved_count', type: 'INTEGER', key: '', desc: 'Count of resolved/closed incidents' },
+        { name: 'resolution_rate_pct', type: 'NUMERIC(5,2)', key: '', desc: '(resolved_count / total_incidents) * 100' },
+        { name: 'avg_mtta_minutes', type: 'NUMERIC(10,2)', key: '', desc: 'Average Mean Time To Acknowledge in minutes' },
+        { name: 'avg_mttr_minutes', type: 'NUMERIC(10,2)', key: '', desc: 'Average Mean Time To Resolve in minutes' },
+        { name: 'sla_breach_count', type: 'INTEGER', key: '', desc: 'Number of incidents exceeding target SLA window' },
+      ],
+    },
+    {
+      id: 'hotspots',
+      tableName: 'mart_security.dm_incident_hotspots',
+      title: 'Gold Mart 2: Recurring Incident & Camera Hotspots',
+      tier: 'Published (Gold)',
+      domain: 'Physical Security & Video Analytics',
+      steward: 'CDE Data Engineering / SOC',
+      refreshSchedule: 'Every 5 minutes (via n8n Workflow CdeImopsDataMart1)',
+      rowCount: counts.gold_hotspots_rows || 0,
+      s3JsonUri: 's3://lake-publish/mart_security/dm_incident_hotspots/latest.json',
+      s3CsvUri: 's3://lake-publish/mart_security/dm_incident_hotspots/latest.csv',
+      kongEndpoint: 'http://localhost:8088/api/v1/datamart/security/hotspots',
+      directEndpoint: 'http://localhost:8090/api/v1/datamart/security/hotspots',
+      description: 'Identifies high-frequency alarm hotspots across sites, zones, and specific cameras/sensors over rolling 7-day and 30-day windows.',
+      lineage: 'iMOPS APIs -> Bronze (raw.imops_api_payloads) -> Silver (silver.fact_incidents_current + silver.dim_location) -> Gold (mart_security.dm_incident_hotspots)',
+      columns: [
+        { name: 'site_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Conformed site name' },
+        { name: 'zone_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Security zone name' },
+        { name: 'device_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Camera or IoT sensor name' },
+        { name: 'incident_type', type: 'VARCHAR(80)', key: 'PK', desc: 'Incident classification triggered by device' },
+        { name: 'incident_count_7d', type: 'INTEGER', key: '', desc: 'Incidents triggered in the last 7 days' },
+        { name: 'incident_count_30d', type: 'INTEGER', key: '', desc: 'Incidents triggered in the last 30 days' },
+        { name: 'critical_alarm_count', type: 'INTEGER', key: '', desc: 'Total critical and high severity alarms' },
+        { name: 'last_incident_at', type: 'TIMESTAMPTZ', key: '', desc: 'Timestamp of most recent alarm at this hotspot' },
+      ],
+    },
+    {
+      id: 'sla-compliance',
+      tableName: 'mart_security.dm_sla_compliance',
+      title: 'Gold Mart 3: Operator & Site SLA Compliance',
+      tier: 'Published (Gold)',
+      domain: 'SOC Performance & Governance',
+      steward: 'SOC Quality Assurance',
+      refreshSchedule: 'Every 5 minutes (via n8n Workflow CdeImopsDataMart1)',
+      rowCount: counts.gold_sla_rows || 0,
+      s3JsonUri: 's3://lake-publish/mart_security/dm_sla_compliance/latest.json',
+      s3CsvUri: 's3://lake-publish/mart_security/dm_sla_compliance/latest.csv',
+      kongEndpoint: 'http://localhost:8088/api/v1/datamart/security/sla-compliance',
+      directEndpoint: 'http://localhost:8090/api/v1/datamart/security/sla-compliance',
+      description: 'Tracks SLA compliance percentage, within-SLA vs breached counts, and fastest/slowest acknowledgment times by date, site, operator, and severity.',
+      lineage: 'iMOPS APIs (/visualization/sla, /api/incidents) -> Bronze -> Silver (silver.fact_incidents_current) -> Gold (mart_security.dm_sla_compliance)',
+      columns: [
+        { name: 'incident_date', type: 'DATE', key: 'PK', desc: 'UTC calendar date' },
+        { name: 'site_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Conformed site name' },
+        { name: 'operator_name', type: 'VARCHAR(100)', key: 'PK', desc: 'Assigned duty operator or team' },
+        { name: 'severity', type: 'VARCHAR(20)', key: 'PK', desc: 'Severity tier (Target SLA: Critical=5m, High=10m, Medium=15m, Low=30m)' },
+        { name: 'incidents_handled', type: 'INTEGER', key: '', desc: 'Total incidents handled' },
+        { name: 'within_sla_count', type: 'INTEGER', key: '', desc: 'Incidents acknowledged within SLA target' },
+        { name: 'breached_sla_count', type: 'INTEGER', key: '', desc: 'Incidents breaching SLA target' },
+        { name: 'sla_compliance_pct', type: 'NUMERIC(5,2)', key: '', desc: '(within_sla_count / incidents_handled) * 100' },
+        { name: 'fastest_ack_sec', type: 'INTEGER', key: '', desc: 'Fastest acknowledgment time in seconds' },
+        { name: 'slowest_ack_sec', type: 'INTEGER', key: '', desc: 'Slowest acknowledgment time in seconds' },
+      ],
+    },
+    {
+      id: 'device-reliability',
+      tableName: 'mart_security.dm_device_reliability',
+      title: 'Gold Mart 4: Camera & Sensor Device Reliability',
+      tier: 'Published (Gold)',
+      domain: 'Field Asset & Hardware Maintenance',
+      steward: 'Facilities & Network Engineering',
+      refreshSchedule: 'Every 5 minutes (via n8n Workflow CdeImopsDataMart1)',
+      rowCount: counts.gold_device_reliability_rows || 0,
+      s3JsonUri: 's3://lake-publish/mart_security/dm_device_reliability/latest.json',
+      s3CsvUri: 's3://lake-publish/mart_security/dm_device_reliability/latest.csv',
+      kongEndpoint: 'http://localhost:8088/api/v1/datamart/security/device-reliability',
+      directEndpoint: 'http://localhost:8090/api/v1/datamart/security/device-reliability',
+      description: 'Daily hardware reliability metrics tracking device offline events, total incidents triggered, and current online/offline status per camera and IoT sensor.',
+      lineage: 'iMOPS APIs (/visualization/device-health) -> Bronze -> Silver (silver.dim_device + silver.fact_incidents_current) -> Gold (mart_security.dm_device_reliability)',
+      columns: [
+        { name: 'incident_date', type: 'DATE', key: 'PK', desc: 'UTC calendar date' },
+        { name: 'site_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Conformed site name' },
+        { name: 'device_name', type: 'VARCHAR(120)', key: 'PK', desc: 'Camera or IoT sensor identifier' },
+        { name: 'device_type', type: 'VARCHAR(60)', key: '', desc: 'Hardware category (Camera, IoT Sensor, Network)' },
+        { name: 'offline_events_count', type: 'INTEGER', key: '', desc: 'Number of Device/Gateway Offline events' },
+        { name: 'incidents_triggered_count', type: 'INTEGER', key: '', desc: 'Total security/equipment incidents from this device' },
+        { name: 'current_health_status', type: 'VARCHAR(40)', key: '', desc: 'Latest polled status (online / offline)' },
+      ],
+    },
+  ];
+}
+
 function sendResponse(res, statusCode, data, format = 'json', csvFilename = 'datamart_export.csv') {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-api-key',
   };
 
   if (format === 'csv') {
@@ -873,6 +1117,431 @@ const server = http.createServer(async (req, res) => {
   const limit = Math.min(1000, Math.max(1, parseInt(parsedUrl.searchParams.get('limit') || '200', 10)));
 
   try {
+    // 0A. Gold-Only Published Data Mart Explorer UI at http://localhost:8090/
+    if (pathname === '/' || pathname === '/ui') {
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CDE Published Security Data Marts (Gold Zone)</title>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --gold: #fbbf24; --green: #22c55e; }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; padding: 24px; background: var(--bg); color: var(--text); }
+    .topnav { display: flex; gap: 10px; margin-bottom: 16px; }
+    .navlink { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 700; text-decoration: none; border: 1px solid var(--border); color: var(--muted); background: var(--card); }
+    .navlink.active { background: #1e40af; color: #fff; border-color: var(--accent); }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    button, .btn { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; }
+    button:hover, .btn:hover { background: #1d4ed8; }
+    .btn-csv { background: #059669; }
+    .btn-csv:hover { background: #047857; }
+    .btn-gold { background: #d97706; }
+    .btn-gold:hover { background: #b45309; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .kpi .zone { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gold); }
+    .kpi .val { font-size: 24px; font-weight: 700; margin: 4px 0; }
+    .kpi .lbl { font-size: 12px; color: var(--muted); }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .tab { background: var(--card); color: var(--muted); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .tab.active { background: #1e40af; color: #fff; border-color: var(--accent); }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; }
+    input { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; width: 280px; font-size: 13px; }
+    .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: auto; max-height: 62vh; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { background: #0f172a; color: var(--accent); position: sticky; top: 0; font-weight: 600; }
+    tr:hover td { background: rgba(255,255,255,0.03); }
+    .badge { padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .sev-critical { background: rgba(239,68,68,0.2); color: #fca5a5; }
+    .sev-high { background: rgba(249,115,22,0.2); color: #fdba74; }
+    .sev-medium { background: rgba(234,179,8,0.2); color: #fde047; }
+    .sev-low { background: rgba(56,189,248,0.2); color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <div class="topnav">
+    <a class="navlink active" href="/">Published Gold Data Marts (Explorer)</a>
+    <a class="navlink" href="/catalog">Data Catalogue & Request API Key</a>
+  </div>
+
+  <div class="header">
+    <div>
+      <h1>CDE Published Security Data Marts (Gold Zone — mart_security.*)</h1>
+      <p id="watermarkText">Loading Published Gold Data Marts...</p>
+    </div>
+    <div class="actions">
+      <a class="btn btn-gold" href="/catalog">Data Catalogue & Request API Key</a>
+      <button onclick="triggerSync()" id="syncBtn">Run Medallion Sync Now</button>
+      <a id="csvBtn" class="btn btn-csv" href="/api/v1/datamart/security/daily-kpis?format=csv">Download Current Mart CSV</a>
+    </div>
+  </div>
+
+  <div class="grid" id="kpiGrid"></div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="selectTab('daily-kpis', this)">Gold Mart 1: Daily Site KPIs (dm_daily_site_kpis)</div>
+    <div class="tab" onclick="selectTab('hotspots', this)">Gold Mart 2: Incident Hotspots (dm_incident_hotspots)</div>
+    <div class="tab" onclick="selectTab('sla-compliance', this)">Gold Mart 3: SLA Compliance (dm_sla_compliance)</div>
+    <div class="tab" onclick="selectTab('device-reliability', this)">Gold Mart 4: Device Reliability (dm_device_reliability)</div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="siteInput" placeholder="Filter by site name (e.g. ISEMS, DAVAO)..." oninput="loadTable()" />
+    <span id="rowCount" style="color: var(--muted); font-size: 13px;"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table id="dataTable"><thead></thead><tbody></tbody></table>
+  </div>
+
+  <script>
+    let currentTab = 'daily-kpis';
+
+    async function loadSummary() {
+      const [sumRes, healthRes] = await Promise.all([
+        fetch('/api/v1/datamart/security/summary').then(r => r.json()),
+        fetch('/api/v1/datamart/security/health').then(r => r.json())
+      ]);
+      const z = sumRes.zones || {};
+      const wm = (healthRes.watermarks && healthRes.watermarks[0]) || {};
+      document.getElementById('watermarkText').textContent =
+        'Published Zone: Gold Only (Bronze & Silver kept internal) | Orchestrated by n8n (' + healthRes.n8nWorkflowId + ') | Last Refreshed: ' + (wm.last_polled_at || 'N/A');
+
+      const cards = [
+        { zone: 'Published Gold Mart 1', val: z.gold_daily_kpis_rows, lbl: 'mart_security.dm_daily_site_kpis' },
+        { zone: 'Published Gold Mart 2', val: z.gold_hotspots_rows, lbl: 'mart_security.dm_incident_hotspots' },
+        { zone: 'Published Gold Mart 3', val: z.gold_sla_rows, lbl: 'mart_security.dm_sla_compliance' },
+        { zone: 'Published Gold Mart 4', val: z.gold_device_reliability_rows, lbl: 'mart_security.dm_device_reliability' }
+      ];
+      document.getElementById('kpiGrid').innerHTML = cards.map(c =>
+        '<div class="kpi"><div class="zone">' + c.zone + '</div><div class="val">' + (c.val ?? 0) + ' rows</div><div class="lbl">' + c.lbl + '</div></div>'
+      ).join('');
+    }
+
+    function selectTab(tab, el) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      loadTable();
+    }
+
+    async function loadTable() {
+      const site = document.getElementById('siteInput').value.trim();
+      const q = site ? '?site=' + encodeURIComponent(site) + '&limit=200' : '?limit=200';
+      const csvBtn = document.getElementById('csvBtn');
+      csvBtn.href = '/api/v1/datamart/security/' + currentTab + (site ? '?site=' + encodeURIComponent(site) + '&format=csv' : '?format=csv');
+      const d = await fetch('/api/v1/datamart/security/' + currentTab + q).then(r => r.json());
+      const rows = d.data || [];
+
+      document.getElementById('rowCount').textContent = 'Showing ' + rows.length + ' published Gold rows';
+      const thead = document.querySelector('#dataTable thead');
+      const tbody = document.querySelector('#dataTable tbody');
+      if (!rows.length) {
+        thead.innerHTML = '';
+        tbody.innerHTML = '<tr><td style="padding:20px;color:var(--muted);">No matching records found.</td></tr>';
+        return;
+      }
+      const cols = Object.keys(rows[0]);
+      thead.innerHTML = '<tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+      tbody.innerHTML = rows.map(r => '<tr>' + cols.map(c => {
+        let v = r[c];
+        if (v === null || v === undefined) return '<td style="color:var(--muted)">—</td>';
+        if (c === 'severity') return '<td><span class="badge sev-' + v + '">' + v + '</span></td>';
+        return '<td>' + String(v) + '</td>';
+      }).join('') + '</tr>').join('');
+    }
+
+    async function triggerSync() {
+      const btn = document.getElementById('syncBtn');
+      btn.textContent = 'Syncing...';
+      btn.disabled = true;
+      await fetch('/api/v1/datamart/security/sync?source=explorer_ui', { method: 'POST' });
+      await loadSummary();
+      await loadTable();
+      btn.textContent = 'Run Medallion Sync Now';
+      btn.disabled = false;
+    }
+
+    loadSummary();
+    loadTable();
+  </script>
+</body>
+</html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
+
+    // 0B. Interactive Data Catalogue & Self-Service API Key Request Portal at http://localhost:8090/catalog
+    if (pathname === '/catalog' || pathname === '/catalogue') {
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CDE Data Catalogue & API Key Portal</title>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --gold: #fbbf24; --green: #22c55e; }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; padding: 24px; background: var(--bg); color: var(--text); }
+    .topnav { display: flex; gap: 10px; margin-bottom: 16px; }
+    .navlink { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 700; text-decoration: none; border: 1px solid var(--border); color: var(--muted); background: var(--card); }
+    .navlink.active { background: #1e40af; color: #fff; border-color: var(--accent); }
+    .header { border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 20px; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .header p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .layout { display: grid; grid-template-columns: 1.55fr 1fr; gap: 20px; align-items: start; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    .card h2 { margin: 0 0 6px; font-size: 17px; color: var(--gold); }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; font-size: 12px; }
+    .pill { background: #0f172a; border: 1px solid var(--border); padding: 3px 9px; border-radius: 999px; color: var(--accent); font-weight: 600; }
+    .pill-gold { color: var(--gold); border-color: rgba(251,191,36,0.4); }
+    .desc { font-size: 13px; color: #e2e8f0; line-height: 1.5; margin-bottom: 10px; }
+    .lineage { background: #0f172a; border-left: 3px solid var(--accent); padding: 8px 12px; font-size: 12px; color: var(--muted); margin-bottom: 12px; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: #0f172a; color: var(--accent); }
+    .pk { background: rgba(251,191,36,0.2); color: var(--gold); padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    input[type="text"], input[type="email"], select { width: 100%; background: #0f172a; border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 6px; font-size: 13px; }
+    .checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #0f172a; padding: 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 12.5px; }
+    button { background: #2563eb; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 700; width: 100%; }
+    button:hover { background: #1d4ed8; }
+    .key-box { background: rgba(34,197,94,0.12); border: 1px solid var(--green); border-radius: 8px; padding: 14px; margin-top: 14px; display: none; }
+    .code { background: #090d16; padding: 8px 10px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #38bdf8; overflow-x: auto; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="topnav">
+    <a class="navlink" href="/">Published Gold Data Marts (Explorer)</a>
+    <a class="navlink active" href="/catalog">Data Catalogue & Request API Key</a>
+  </div>
+
+  <div class="header">
+    <h1>CDE Published Data Catalogue & Self-Service API Access Portal</h1>
+    <p>Browse available Published Gold Data Marts (PostgreSQL <code>mart_security.*</code> & MinIO <code>s3://lake-publish</code>), inspect column dictionaries & lineage, and request an API Key for Kong API Gateway (<code>:8088</code>).</p>
+  </div>
+
+  <div class="layout">
+    <div>
+      <h3 style="margin-top:0;">Available Published Gold Datasets (4 Data Marts)</h3>
+      <div id="catalogList">Loading Data Catalogue...</div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2 style="color:#38bdf8;">Request an API Key (Self-Service Kong Gateway Access)</h2>
+        <p class="desc">Generate a consumer API key to query or export the Published Gold Data Marts via Kong API Gateway (<code>http://localhost:8088/api/v1/datamart/security/*</code>).</p>
+
+        <div class="form-group">
+          <label>Application / Consumer Name *</label>
+          <input type="text" id="appName" placeholder="e.g. Executive BI Dashboard / PowerBI Connector" value="Security BI Analytics App" />
+        </div>
+        <div class="form-group">
+          <label>Requester Email *</label>
+          <input type="email" id="reqEmail" placeholder="e.g. analyst@isems.com" value="analyst@isems.com" />
+        </div>
+        <div class="form-group">
+          <label>Department / Organization</label>
+          <input type="text" id="deptName" placeholder="e.g. SOC Operations / Management" value="SOC Operations" />
+        </div>
+        <div class="form-group">
+          <label>Select Published Gold Data Marts to Access</label>
+          <div class="checkboxes">
+            <label><input type="checkbox" class="mart-cb" value="daily-kpis" checked /> 1. Daily Site KPIs</label>
+            <label><input type="checkbox" class="mart-cb" value="hotspots" checked /> 2. Incident Hotspots</label>
+            <label><input type="checkbox" class="mart-cb" value="sla-compliance" checked /> 3. SLA Compliance</label>
+            <label><input type="checkbox" class="mart-cb" value="device-reliability" checked /> 4. Device Reliability</label>
+          </div>
+        </div>
+        <button onclick="requestApiKey()" id="reqBtn">Generate API Key & Provision in Kong Gateway</button>
+
+        <div class="key-box" id="keyResultBox">
+          <div style="font-weight:700;color:var(--green);margin-bottom:6px;">API Key Generated & Synced to Kong Gateway!</div>
+          <div style="font-size:12px;">Your API Key: <strong id="issuedKey" style="color:#fff;font-family:monospace;font-size:14px;"></strong></div>
+          <div style="font-size:12px;margin-top:8px;color:var(--muted);">Test via Kong Gateway (:8088) in Browser or PowerShell:</div>
+          <div class="code" id="sampleCurl"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="color:var(--gold);">Registered API Key Consumers</h2>
+        <p class="desc">Active API keys provisioned in <code>mart_security.api_consumers</code> and synced to Kong API Gateway (<code>:8001</code>).</p>
+        <table id="consumersTable">
+          <thead>
+            <tr><th>App Name</th><th>Department</th><th>API Key</th><th>Kong Synced</th><th>Test Link (:8088)</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function loadCatalog() {
+      const res = await fetch('/api/v1/datamart/security/catalog').then(r => r.json());
+      const list = res.datasets || [];
+      document.getElementById('catalogList').innerHTML = list.map(d => \`
+        <div class="card">
+          <h2>\${d.title}</h2>
+          <div class="meta">
+            <span class="pill pill-gold">\${d.tier}</span>
+            <span class="pill">Table: \${d.tableName}</span>
+            <span class="pill">Rows: \${d.rowCount}</span>
+            <span class="pill">Refresh: \${d.refreshSchedule}</span>
+          </div>
+          <p class="desc">\${d.description}</p>
+          <div class="lineage"><strong>Lineage:</strong> \${d.lineage}<br/><strong>MinIO S3:</strong> <code>\${d.s3JsonUri}</code> | <code>\${d.s3CsvUri}</code></div>
+          <div style="font-size:12px;margin-bottom:8px;">
+            <strong>Kong Gateway Endpoint:</strong> <code>\${d.kongEndpoint}?apikey=&lt;YOUR_API_KEY&gt;</code>
+            &nbsp;|&nbsp; <a href="\${d.directEndpoint}?format=csv" style="color:var(--green);font-weight:700;">Download Sample CSV</a>
+          </div>
+          <details>
+            <summary style="cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:600;">View Column Data Dictionary (\${d.columns.length} columns)</summary>
+            <table>
+              <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Business Definition & Formula</th></tr></thead>
+              <tbody>
+                \${d.columns.map(c => \`<tr>
+                  <td><strong>\${c.name}</strong></td>
+                  <td><code>\${c.type}</code></td>
+                  <td>\${c.key ? '<span class="pk">' + c.key + '</span>' : ''}</td>
+                  <td>\${c.desc}</td>
+                </tr>\`).join('')}
+              </tbody>
+            </table>
+          </details>
+        </div>
+      \`).join('');
+    }
+
+    async function loadConsumers() {
+      const res = await fetch('/api/v1/datamart/security/api-keys').then(r => r.json());
+      const rows = res.consumers || [];
+      document.querySelector('#consumersTable tbody').innerHTML = rows.map(c => \`
+        <tr>
+          <td><strong>\${c.app_name}</strong><br/><span style="color:var(--muted);font-size:11px;">\${c.requester_email}</span></td>
+          <td>\${c.department}</td>
+          <td><code>\${c.api_key}</code></td>
+          <td>\${c.kong_synced ? '<span style="color:var(--green);font-weight:700;">Synced</span>' : 'Local'}</td>
+          <td><a href="http://localhost:8088/api/v1/datamart/security/daily-kpis?apikey=\${c.api_key}" target="_blank" style="color:var(--accent);font-weight:600;">Test Kong JSON</a></td>
+        </tr>
+      \`).join('');
+    }
+
+    async function requestApiKey() {
+      const appName = document.getElementById('appName').value.trim();
+      const requesterEmail = document.getElementById('reqEmail').value.trim();
+      const department = document.getElementById('deptName').value.trim();
+      const allowedMarts = Array.from(document.querySelectorAll('.mart-cb:checked')).map(cb => cb.value);
+      if (!appName || !requesterEmail) return alert('Please enter Application Name and Email.');
+
+      const btn = document.getElementById('reqBtn');
+      btn.textContent = 'Provisioning API Key...';
+      btn.disabled = true;
+
+      const res = await fetch('/api/v1/datamart/security/request-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appName, requesterEmail, department, allowedMarts })
+      }).then(r => r.json());
+
+      btn.textContent = 'Generate API Key & Provision in Kong Gateway';
+      btn.disabled = false;
+
+      if (res.apiKey) {
+        const box = document.getElementById('keyResultBox');
+        box.style.display = 'block';
+        document.getElementById('issuedKey').textContent = res.apiKey;
+        document.getElementById('sampleCurl').innerHTML =
+          'curl.exe "http://localhost:8088/api/v1/datamart/security/daily-kpis?apikey=' + res.apiKey + '"<br/><br/>' +
+          '<a href="http://localhost:8088/api/v1/datamart/security/daily-kpis?apikey=' + res.apiKey + '" target="_blank" style="color:#22c55e;font-weight:700;">Click Here to Open Authenticated Kong URL in Browser</a>';
+        loadConsumers();
+      }
+    }
+
+    loadCatalog();
+    loadConsumers();
+  </script>
+</body>
+</html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
+
+    // 0C. JSON Data Catalogue Endpoint
+    if (pathname === '/api/v1/datamart/security/catalog') {
+      const counts = (
+        await pgPool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM mart_security.dm_daily_site_kpis)::int AS gold_daily_kpis_rows,
+            (SELECT COUNT(*) FROM mart_security.dm_incident_hotspots)::int AS gold_hotspots_rows,
+            (SELECT COUNT(*) FROM mart_security.dm_sla_compliance)::int AS gold_sla_rows,
+            (SELECT COUNT(*) FROM mart_security.dm_device_reliability)::int AS gold_device_reliability_rows
+        `)
+      ).rows[0];
+      return sendResponse(res, 200, {
+        status: 'OK',
+        publishedZone: 'Gold Only (mart_security.*)',
+        kongGatewayBaseUrl: 'http://localhost:8088/api/v1/datamart/security',
+        datasets: getCatalogueMetadata(counts),
+      });
+    }
+
+    // 0D. List Registered API Consumers
+    if (pathname === '/api/v1/datamart/security/api-keys' && req.method === 'GET') {
+      const { rows } = await pgPool.query(
+        `SELECT consumer_id, app_name, requester_email, department, allowed_marts, api_key, status, kong_synced, created_at
+         FROM mart_security.api_consumers
+         ORDER BY created_at DESC LIMIT 50`
+      );
+      return sendResponse(res, 200, { count: rows.length, consumers: rows });
+    }
+
+    // 0E. Self-Service Request API Key Endpoint (Saves to Postgres + Syncs to Kong Gateway)
+    if (pathname === '/api/v1/datamart/security/request-key' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const appName = String(body.appName || 'External Data Consumer').trim();
+      const requesterEmail = String(body.requesterEmail || 'user@cde.local').trim();
+      const department = String(body.department || 'Analytics').trim();
+      const allowedMarts = Array.isArray(body.allowedMarts) && body.allowedMarts.length > 0
+        ? body.allowedMarts
+        : ['daily-kpis', 'hotspots', 'sla-compliance', 'device-reliability'];
+      const apiKey = 'cde_live_' + crypto.randomBytes(12).toString('hex');
+
+      const ins = await pgPool.query(
+        `INSERT INTO mart_security.api_consumers (app_name, requester_email, department, allowed_marts, api_key, status)
+         VALUES ($1, $2, $3, $4, $5, 'active')
+         RETURNING *`,
+        [appName, requesterEmail, department, allowedMarts, apiKey]
+      );
+      const consumer = ins.rows[0];
+      const slug = appName.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + String(consumer.consumer_id).substring(0, 6);
+      const kongSynced = await syncConsumerToKong(slug, apiKey);
+      if (kongSynced) {
+        await pgPool.query(`UPDATE mart_security.api_consumers SET kong_synced = TRUE WHERE consumer_id = $1`, [consumer.consumer_id]);
+        consumer.kong_synced = true;
+      }
+
+      return sendResponse(res, 201, {
+        status: 'CREATED',
+        message: 'API Key generated and provisioned in Kong API Gateway.',
+        apiKey,
+        kongSynced,
+        consumer,
+        kongExamples: {
+          dailyKpisJson: `http://localhost:8088/api/v1/datamart/security/daily-kpis?apikey=${apiKey}`,
+          dailyKpisCsv: `http://localhost:8088/api/v1/datamart/security/daily-kpis?format=csv&apikey=${apiKey}`,
+          hotspotsJson: `http://localhost:8088/api/v1/datamart/security/hotspots?apikey=${apiKey}`,
+          slaComplianceJson: `http://localhost:8088/api/v1/datamart/security/sla-compliance?apikey=${apiKey}`,
+          deviceReliabilityJson: `http://localhost:8088/api/v1/datamart/security/device-reliability?apikey=${apiKey}`,
+        },
+      });
+    }
+
     // 1. Health & Watermark Endpoint
     if (pathname === '/health' || pathname === '/api/v1/datamart/security/health') {
       const wm = await pgPool.query(`SELECT * FROM raw.etl_watermarks ORDER BY last_polled_at DESC`);
@@ -893,6 +1562,89 @@ const server = http.createServer(async (req, res) => {
       const sourceParam = parsedUrl.searchParams.get('source') || 'n8n_workflow_trigger';
       const result = await runMedallionEtl(sourceParam);
       return sendResponse(res, 200, result);
+    }
+
+    // 2A. Medallion Stage 1 (Bronze / Raw Zone) — Archive Raw Payloads & Return Bronze Audit Rows
+    if (pathname === '/api/v1/datamart/security/etl/bronze' && (req.method === 'POST' || req.method === 'GET')) {
+      const sourceParam = parsedUrl.searchParams.get('source') || 'n8n_schedule_poller';
+      const syncRes = await runMedallionEtl(sourceParam);
+      const rawBatches = (
+        await pgPool.query(
+          `SELECT batch_id, endpoint, site_name, pulled_at, record_count, s3_object_key
+           FROM raw.imops_api_payloads
+           ORDER BY pulled_at DESC LIMIT 8`
+        )
+      ).rows;
+      return sendResponse(res, 200, {
+        medallionZone: 'Zone 1 — RAW (Bronze)',
+        status: syncRes.status || 'SUCCESS',
+        triggerSource: sourceParam,
+        rawBatchesSaved: syncRes.rawBatchesSaved || 8,
+        s3RawObjects: (syncRes.s3ObjectsWritten || []).filter((u) => u.startsWith('s3://lake-raw/')),
+        latestRawBatchRecords: rawBatches,
+      });
+    }
+
+    // 2B. Medallion Stage 2 (Silver / Curated Star Schema) — Upsert & Return Conformed Dimensions + Facts
+    if (pathname === '/api/v1/datamart/security/etl/silver' && (req.method === 'POST' || req.method === 'GET')) {
+      const counts = (
+        await pgPool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM silver.dim_location)::int AS dim_location_total,
+            (SELECT COUNT(*) FROM silver.dim_device)::int AS dim_device_total,
+            (SELECT COUNT(*) FROM silver.dim_incident_type)::int AS dim_incident_type_total,
+            (SELECT COUNT(*) FROM silver.fact_incidents_current)::int AS fact_incidents_total,
+            (SELECT COUNT(*) FROM silver.fact_incident_state_history)::int AS state_history_total
+        `)
+      ).rows[0];
+      const sampleLocations = (await pgPool.query(`SELECT * FROM silver.dim_location ORDER BY updated_at DESC LIMIT 5`)).rows;
+      const sampleDevices = (await pgPool.query(`SELECT * FROM silver.dim_device ORDER BY updated_at DESC LIMIT 5`)).rows;
+      const sampleIncidentTypes = (await pgPool.query(`SELECT * FROM silver.dim_incident_type ORDER BY sla_target_minutes ASC LIMIT 6`)).rows;
+      const sampleFacts = (
+        await pgPool.query(
+          `SELECT incident_number, site_name, floor_name, zone_name, device_name, incident_type, severity, status,
+                  detected_at, acknowledged_at, resolved_at, mtta_seconds, mttr_seconds, is_sla_breached, source_system
+           FROM silver.fact_incidents_current
+           ORDER BY detected_at DESC LIMIT 10`
+        )
+      ).rows;
+      return sendResponse(res, 200, {
+        medallionZone: 'Zone 2 — CURATED (Silver Star Schema)',
+        status: 'SUCCESS',
+        s3CuratedObjects: (lastSyncResult && lastSyncResult.s3ObjectsWritten || []).filter((u) => u.startsWith('s3://lake-curated/')),
+        starSchemaCounts: counts,
+        curatedFactIncidentsSample: sampleFacts,
+        dimLocationSample: sampleLocations,
+        dimDeviceSample: sampleDevices,
+        dimIncidentTypeSample: sampleIncidentTypes,
+      });
+    }
+
+    // 2C. Medallion Stage 3 (Gold / Published Business Data Marts) — Refresh & Return Pre-Aggregated Marts
+    if (pathname === '/api/v1/datamart/security/etl/gold' && (req.method === 'POST' || req.method === 'GET')) {
+      await pgPool.query(`SELECT mart_security.refresh_security_datamarts()`);
+      const kpis = (
+        await pgPool.query(`SELECT * FROM mart_security.dm_daily_site_kpis ORDER BY incident_date DESC, total_incidents DESC LIMIT 8`)
+      ).rows;
+      const hotspots = (
+        await pgPool.query(`SELECT * FROM mart_security.dm_incident_hotspots ORDER BY critical_alarm_count DESC, last_incident_at DESC NULLS LAST LIMIT 8`)
+      ).rows;
+      const sla = (
+        await pgPool.query(`SELECT * FROM mart_security.dm_sla_compliance ORDER BY incident_date DESC, incidents_handled DESC LIMIT 8`)
+      ).rows;
+      const reliability = (
+        await pgPool.query(`SELECT * FROM mart_security.dm_device_reliability ORDER BY incident_date DESC, incidents_triggered_count DESC LIMIT 8`)
+      ).rows;
+      return sendResponse(res, 200, {
+        medallionZone: 'Zone 3 — PUBLISHED (Gold Business Data Marts)',
+        status: 'SUCCESS',
+        storedProcedureExecuted: 'SELECT mart_security.refresh_security_datamarts()',
+        s3PublishedObjects: (lastSyncResult && lastSyncResult.s3ObjectsWritten || []).filter((u) => u.startsWith('s3://lake-publish/')),
+        dm_daily_site_kpis_sample: kpis,
+        dm_incident_hotspots_sample: hotspots,
+        dm_sla_compliance_sample: sla,
+        dm_device_reliability_sample: reliability,
+      });
     }
 
     // 3. Executive Data Mart Summary across Bronze / Silver / Gold + MinIO
@@ -1052,6 +1804,9 @@ server.listen(PORT, '0.0.0.0', () => {
       ENABLE_INTERNAL_TIMER ? 'standalone_timer' : 'hybrid_n8n_orchestrated'
     })`
   );
+  // Initialize API Consumers table & provision Kong Gateway Service/Route/key-auth
+  initGovernanceAndKong().catch((err) => console.error('[Governance] Startup init failed:', err));
+
   // Run initial ETL poll immediately on startup
   setTimeout(() => {
     runMedallionEtl('startup').catch((err) => console.error('[ETL] Startup run failed:', err));

@@ -173,6 +173,21 @@ CREATE TABLE IF NOT EXISTS mart_security.dm_device_reliability (
     PRIMARY KEY (incident_date, site_name, device_name)
 );
 
+CREATE TABLE IF NOT EXISTS mart_security.api_consumers (
+    consumer_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    app_name           VARCHAR(120) NOT NULL,
+    requester_email    VARCHAR(150) NOT NULL,
+    department         VARCHAR(100) DEFAULT 'External Consumer',
+    allowed_marts      TEXT[] NOT NULL DEFAULT ARRAY['daily-kpis','hotspots','sla-compliance','device-reliability'],
+    api_key            VARCHAR(80) UNIQUE NOT NULL,
+    status             VARCHAR(20) NOT NULL DEFAULT 'active',
+    kong_synced        BOOLEAN DEFAULT FALSE,
+    requests_count     INTEGER NOT NULL DEFAULT 0,
+    last_used_at       TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
 -- =============================================================================
 -- STORED FUNCTION: Refresh Silver -> Gold Business Data Marts
 -- =============================================================================

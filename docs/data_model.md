@@ -473,3 +473,77 @@ The ETL runner executes every **5–15 minutes** (via `cde-datamart-etl` contain
    ```
 2. **Provision the Grafana Security Incident Data Mart Dashboard:**
    - Displays **Daily Incidents by Site & Severity**, **MTTA / MTTR Trend**, **SLA Compliance %**, **Top Camera/Zone Hotspots**, and a full **Security Incidents Table** where any user can click **`⋮` $\rightarrow$ Inspect $\rightarrow$ Data $\rightarrow$ Download CSV**.
+
+---
+
+## 10. Operations Runbook: Startup Commands, Service URLs & Implementation Status
+
+### 10.1 Current Implementation Progress
+
+| Phase | Scope | Status |
+| :--- | :--- | :--- |
+| **Phase 1** | **Storage & Medallion Schema Initialization** (`cde-datamart-db` on `:5433`, `cde-minio` on `:9000/:9001`, 12 tables across `raw`, `silver`, `mart_security`, S3 buckets `lake-raw`, `lake-curated`, `lake-publish`) | **Completed & Verified** |
+| **Phase 2** | **Hybrid n8n Scheduled Poller + Medallion ETL & Serving API** (`n8n` workflow `CdeImopsDataMart1` triggering `cde-datamart-etl` on `:8090` every 5 mins) | **Completed & Verified** |
+| **Phase 3** | **Data Catalogue, Self-Service API Key Portal (`/catalog`) & Kong API Gateway (`:8088`) Egress** (`key-auth` protection + Gold-only publishing) | **Completed & Verified** |
+| **Phase 4** | **Connect Grafana (`:3000`) to `cde-datamart-db` & Provision Security Data Mart Dashboard** (`http://localhost:3000/d/cde-security-datamart`) | **Completed & Verified** |
+
+---
+
+### 10.2 Complete Service URLs & Credentials Reference
+
+| Layer | Service / Container | URL / Host Port | Credentials & Notes |
+| :--- | :--- | :--- | :--- |
+| **n8n Orchestrator (Control Plane)** | `n8n-server` / `n8n-proxy` | **[https://localhost:5678](https://localhost:5678)** | Active workflow: **`iMOPS Security Incident Poller & Medallion Data Mart ETL`** (`ID: CdeImopsDataMart1`) |
+| **n8n Poller Workflow Canvas** | `n8n-server` | **[https://localhost:5678/workflow/CdeImopsDataMart1](https://localhost:5678/workflow/CdeImopsDataMart1)** | Visual 5-minute `Schedule Trigger` + 5-step Medallion pipeline |
+| **n8n Poller Executions UI** | `n8n-server` | **[https://localhost:5678/workflow/CdeImopsDataMart1/executions](https://localhost:5678/workflow/CdeImopsDataMart1/executions)** | Inspect every 5-minute scheduled run and node JSON outputs |
+| **Data Mart ETL & Serving API** | `cde-datamart-etl` | **[http://localhost:8090/api/v1/datamart/security/summary](http://localhost:8090/api/v1/datamart/security/summary)** | Health check: **[http://localhost:8090/api/v1/datamart/security/health](http://localhost:8090/api/v1/datamart/security/health)** |
+| **MinIO S3 Web Console** | `cde-minio` | **[http://localhost:9001](http://localhost:9001)** | Login: `cdeadmin` / `cdepassword123` (`lake-raw`, `lake-curated`, `lake-publish`) |
+| **MinIO S3 API** | `cde-minio` | `http://localhost:9000` | Internal Docker alias: `http://cde-minio:9000` |
+| **PostgreSQL 16 Data Mart** | `cde-datamart-db` | `localhost:5433` (Internal: `cde-datamart-db:5432`) | DB: `cde_datamart` / User: `cdeadmin` / Pass: `cdepassword123` |
+| **iMOPS Source Backend** | `imops-backend` | `http://localhost:13000` | Basic Auth: `dors_user@isems.com` / `1Pu1znaPbTqXcyC5KVpP` |
+| **Kong API Gateway** | `kong-gateway` | `http://localhost:8088` | Admin API: `http://localhost:8001` / Kong Manager UI: **[http://localhost:8002](http://localhost:8002)** |
+| **Grafana BI Dashboards** | `cde-grafana` | **[http://localhost:3000](http://localhost:3000)** | Login: `admin` / `admin123` |
+| **Kibana (ELK Logs)** | `cde-kibana` | **[http://localhost:5601](http://localhost:5601)** | Dashboard: **[CDE Platform Overview](http://localhost:5601/app/dashboards#/view/cde-platform-overview)** |
+
+---
+
+### 10.3 Commands to Start / Resume All CDE Stacks
+
+```powershell
+# 1. Start Data Mart Stack (Postgres :5433, MinIO :9000/:9001, ETL API :8090)
+docker compose -f c:\Projects\cde\datamart\docker-compose.yml up -d
+
+# 2. Start n8n Orchestrator (:5678)
+docker compose -f c:\Projects\cde\n8n\docker-compose.yml up -d
+
+# 3. Start Kong API Gateway (:8088 / Admin :8001 / Manager :8002) — Required for Phase 3
+docker compose -f c:\Projects\cde\apigw\docker-compose.yml up -d
+
+# 4. Start Prometheus & Grafana (:3000) — Required for Phase 4
+docker compose -f c:\Projects\cde\grafana\docker-compose.yml up -d
+
+# 5. (Optional) Start ELK Log Stack (Kibana :5601)
+docker compose -f c:\Projects\cde\elk\docker-compose.yml up -d
+```
+
+---
+
+### 10.4 Verification & Diagnostic Commands
+
+```powershell
+# 1. Run full Data Mart verification script (checks containers, 11 tables, 3 S3 buckets & row counts)
+powershell -ExecutionPolicy Bypass -File c:\Projects\cde\datamart\scripts\verify_datamart.ps1
+
+# 2. Check ETL Health, Watermarks & Last Run Result
+Invoke-RestMethod -Uri "http://localhost:8090/api/v1/datamart/security/health" | ConvertTo-Json -Depth 5
+
+# 3. Trigger an Immediate Poll via n8n Webhook
+curl.exe -k -X POST "https://localhost:5678/webhook/datamart-sync"
+
+# 4. Stream Live ETL Container Logs
+docker logs -f cde-datamart-etl
+
+# 5. Inspect Raw Batch Audit Trail in PostgreSQL
+docker exec cde-datamart-db psql -U cdeadmin -d cde_datamart -c "SELECT pulled_at, endpoint, site_name, record_count, s3_object_key FROM raw.imops_api_payloads ORDER BY pulled_at DESC LIMIT 16;"
+```
+

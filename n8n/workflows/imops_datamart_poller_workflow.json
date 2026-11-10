@@ -18,7 +18,7 @@
       "name": "Every 5 Minutes (Schedule Trigger)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [180, 240]
+      "position": [140, 220]
     },
     {
       "parameters": {
@@ -31,7 +31,7 @@
       "name": "On-Demand Sync Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [180, 440],
+      "position": [140, 420],
       "webhookId": "datamart-sync"
     },
     {
@@ -57,7 +57,7 @@
       "name": "1. Poll iMOPS Hierarchy API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 320]
+      "position": [380, 320]
     },
     {
       "parameters": {
@@ -82,7 +82,7 @@
       "name": "2. Poll iMOPS Incidents API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 320]
+      "position": [600, 320]
     },
     {
       "parameters": {
@@ -107,12 +107,12 @@
       "name": "3. Poll iMOPS Device Health API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 320]
+      "position": [820, 320]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://cde-datamart-etl:8090/api/v1/datamart/security/sync?source=n8n_schedule_poller",
+        "url": "http://cde-datamart-etl:8090/api/v1/datamart/security/etl/bronze?source=n8n_schedule_poller",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -124,11 +124,63 @@
         },
         "options": {}
       },
-      "id": "node-run-medallion-etl",
-      "name": "4. Execute Medallion ETL (Raw -> Curated -> Published)",
+      "id": "node-bronze-archive",
+      "name": "4A. Bronze: Archive Raw Payloads (s3://lake-raw)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1180, 320]
+      "position": [1060, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// SILVER TRANSFORMATION RULES (Visible in n8n Canvas)\n// Normalizes iMOPS Raw Payloads -> Conformed Star Schema Dimensions & Facts\n// ============================================================================\nconst bronzeOutput = $input.first().json || {};\n\nconst slaTargetsBySeverity = {\n  critical: { slaMinutes: 5, slaSeconds: 300 },\n  high:     { slaMinutes: 10, slaSeconds: 600 },\n  medium:   { slaMinutes: 15, slaSeconds: 900 },\n  low:      { slaMinutes: 30, slaSeconds: 1800 }\n};\n\nconst starSchemaMappings = {\n  dimensions: [\n    'silver.dim_location (loc_<md5(site|building|floor|zone)>)',\n    'silver.dim_device (dev_<md5(site|device_name)>)',\n    'silver.dim_incident_type (itype_<md5(incident_type_code)>)'\n  ],\n  facts: [\n    'silver.fact_incidents_current (ON CONFLICT incident_number DO UPDATE)',\n    'silver.fact_incident_state_history (tracks status transitions)'\n  ],\n  kpiFormulas: {\n    mtta_seconds: 'EXTRACT(EPOCH FROM (acknowledged_at - detected_at))',\n    mttr_seconds: 'EXTRACT(EPOCH FROM (resolved_at - detected_at))',\n    is_sla_breached: 'mtta_seconds > (sla_target_minutes * 60) OR (status = active AND age > sla)'\n  }\n};\n\nreturn [{\n  json: {\n    stage: '4B. Silver Transformation Rule Engine',\n    bronzeStatus: bronzeOutput.status,\n    rawBatchesProcessed: bronzeOutput.rawBatchesSaved,\n    s3RawFiles: bronzeOutput.s3RawObjects,\n    slaTargetsBySeverity,\n    starSchemaMappings\n  }\n}];"
+      },
+      "id": "node-silver-rules",
+      "name": "4B. Silver Rules: Normalize SLA & Star Schema Keys",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://cde-datamart-etl:8090/api/v1/datamart/security/etl/silver",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-silver-upsert",
+      "name": "4C. Silver: Upsert Star Schema (silver.* + s3://lake-curated)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://cde-datamart-etl:8090/api/v1/datamart/security/etl/gold",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-gold-refresh",
+      "name": "4D. Gold: Refresh Business Data Marts (mart_security.* + s3://lake-publish)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 320]
     },
     {
       "parameters": {
@@ -149,7 +201,7 @@
       "name": "5. Verify Published Data Mart Summary",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1440, 320]
+      "position": [2020, 320]
     }
   ],
   "connections": {
@@ -201,14 +253,47 @@
       "main": [
         [
           {
-            "node": "4. Execute Medallion ETL (Raw -> Curated -> Published)",
+            "node": "4A. Bronze: Archive Raw Payloads (s3://lake-raw)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "4. Execute Medallion ETL (Raw -> Curated -> Published)": {
+    "4A. Bronze: Archive Raw Payloads (s3://lake-raw)": {
+      "main": [
+        [
+          {
+            "node": "4B. Silver Rules: Normalize SLA & Star Schema Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4B. Silver Rules: Normalize SLA & Star Schema Keys": {
+      "main": [
+        [
+          {
+            "node": "4C. Silver: Upsert Star Schema (silver.* + s3://lake-curated)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4C. Silver: Upsert Star Schema (silver.* + s3://lake-curated)": {
+      "main": [
+        [
+          {
+            "node": "4D. Gold: Refresh Business Data Marts (mart_security.* + s3://lake-publish)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4D. Gold: Refresh Business Data Marts (mart_security.* + s3://lake-publish)": {
       "main": [
         [
           {
@@ -227,4 +312,3 @@
     "saveManualExecutions": true
   }
 }
-
