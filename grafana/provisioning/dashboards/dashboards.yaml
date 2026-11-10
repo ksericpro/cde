@@ -1,6 +1,17 @@
 apiVersion: 1
 
 providers:
+  - name: 'CDE Security Data Mart'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/definitions/datamart
+
   - name: 'CDE Dashboards'
     orgId: 1
     folder: 'CDE Infrastructure & Gateway'

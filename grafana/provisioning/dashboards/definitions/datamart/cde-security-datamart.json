@@ -454,5 +454,6 @@
   "timezone": "browser",
   "title": "CDE Published Security Incident Data Mart (Gold Zone)",
   "uid": "cde-security-datamart",
-  "version": 2
+  "version": 3
 }
+
