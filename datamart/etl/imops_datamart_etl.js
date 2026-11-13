@@ -27,10 +27,46 @@ const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 const { URL } = require('url');
-const { Pool } = require('pg');
-const { MongoClient } = require('mongodb');
-const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+
+function requirePkg(pkgName) {
+  try {
+    return require(pkgName);
+  } catch (e) {
+    // 1. Check standard pnpm store roots across n8n versions
+    const pnpmPrefix = pkgName.replace('/', '+') + '@';
+    const candidateStores = [
+      '/usr/local/lib/node_modules/n8n/node_modules/.pnpm',
+      '/usr/lib/node_modules/n8n/node_modules/.pnpm',
+      '/home/node/.n8n/node_modules/.pnpm',
+    ];
+    for (const store of candidateStores) {
+      if (fs.existsSync(store)) {
+        const match = fs.readdirSync(store).find((d) => d.startsWith(pnpmPrefix));
+        if (match) {
+          const fullPath = path.join(store, match, 'node_modules', pkgName);
+          if (fs.existsSync(fullPath)) return require(fullPath);
+        }
+      }
+    }
+    // 2. Fallback: locate package.json anywhere under /usr, /opt, or /home
+    const foundPkgJson = execSync(
+      `find /usr /opt /home -path "*/node_modules/${pkgName}/package.json" 2>/dev/null | head -n 1`,
+      { encoding: 'utf8' }
+    ).trim();
+    if (foundPkgJson) {
+      return require(path.dirname(foundPkgJson));
+    }
+    throw e;
+  }
+}
+
+const { Pool } = requirePkg('pg');
+const { MongoClient } = requirePkg('mongodb');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = requirePkg('@aws-sdk/client-s3');
 
 // -----------------------------------------------------------------------------
 // Configuration

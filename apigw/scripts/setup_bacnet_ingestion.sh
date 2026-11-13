@@ -15,19 +15,33 @@ IMOPS_IP="${1:-localhost:13000}"
 API_KEY="${2:-zaarr-bacnet-gw01-key-2026}"
 ADMIN_URL="${3:-http://localhost:8001}"
 ADAPTER_ADMIN_URL="${4:-http://localhost:8090}"
-ADAPTER_UPSTREAM_URL="${5:-http://host.docker.internal:8090}"
+ADAPTER_UPSTREAM_URL="${5:-http://cde-datamart-etl:8090}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Ensure the CDE Datamart & BACnet Adapter stack (:8090) is running
-if ! curl -s -m 2 "$ADAPTER_ADMIN_URL/health" > /dev/null 2>&1; then
-    echo "⚙️  CDE BACnet Adapter (:8090) not responding. Starting datamart stack..."
-    docker network create cde-network >/dev/null 2>&1 || true
-    docker compose -f "$PROJECT_ROOT/datamart/docker-compose.yml" up -d
-    sleep 5
-    docker exec -i cde-datamart-db psql -U cdeadmin -d cde_datamart < "$PROJECT_ROOT/datamart/sql/01_init_schemas_and_tables.sql" >/dev/null 2>&1 || true
-fi
+# Ensure cde-network exists, kong-gateway is attached, and the Datamart/BACnet Adapter stack (:8090) is running with latest code & schema
+echo "⚙️  Ensuring CDE Datamart & BACnet Adapter (:8090) stack and database schema are up to date..."
+docker network create cde-network >/dev/null 2>&1 || true
+docker network connect cde-network kong-gateway >/dev/null 2>&1 || true
+docker compose -f "$PROJECT_ROOT/datamart/docker-compose.yml" up -d
+docker restart cde-datamart-etl >/dev/null 2>&1 || true
+docker exec kong-gateway kong reload >/dev/null 2>&1 || true
+
+for i in {1..15}; do
+    if docker exec cde-datamart-db pg_isready -U cdeadmin -d cde_datamart >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+docker exec -i cde-datamart-db psql -U cdeadmin -d cde_datamart < "$PROJECT_ROOT/datamart/sql/01_init_schemas_and_tables.sql" >/dev/null 2>&1 || true
+
+for i in {1..15}; do
+    if curl -s -m 2 "$ADAPTER_ADMIN_URL/health" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
 
 # -----------------------------------------------------------------------------
 # 0. Resolve Target iMOPS Base URL from IMOPS_IP parameter
