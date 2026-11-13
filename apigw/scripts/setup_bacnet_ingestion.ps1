@@ -57,7 +57,7 @@ param(
     [string]$AdapterAdminUrl = "http://localhost:8090",
 
     [Parameter(Position = 4)]
-    [string]$AdapterUpstreamUrl = "http://cde-datamart-etl:8090"
+    [string]$AdapterUpstreamUrl = "http://host.docker.internal:8090"
 )
 
 # -----------------------------------------------------------------------------

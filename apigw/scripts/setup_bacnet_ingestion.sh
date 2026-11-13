@@ -15,7 +15,19 @@ IMOPS_IP="${1:-localhost:13000}"
 API_KEY="${2:-zaarr-bacnet-gw01-key-2026}"
 ADMIN_URL="${3:-http://localhost:8001}"
 ADAPTER_ADMIN_URL="${4:-http://localhost:8090}"
-ADAPTER_UPSTREAM_URL="${5:-http://cde-datamart-etl:8090}"
+ADAPTER_UPSTREAM_URL="${5:-http://host.docker.internal:8090}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Ensure the CDE Datamart & BACnet Adapter stack (:8090) is running
+if ! curl -s -m 2 "$ADAPTER_ADMIN_URL/health" > /dev/null 2>&1; then
+    echo "⚙️  CDE BACnet Adapter (:8090) not responding. Starting datamart stack..."
+    docker network create cde-network >/dev/null 2>&1 || true
+    docker compose -f "$PROJECT_ROOT/datamart/docker-compose.yml" up -d
+    sleep 5
+    docker exec -i cde-datamart-db psql -U cdeadmin -d cde_datamart < "$PROJECT_ROOT/datamart/sql/01_init_schemas_and_tables.sql" >/dev/null 2>&1 || true
+fi
 
 # -----------------------------------------------------------------------------
 # 0. Resolve Target iMOPS Base URL from IMOPS_IP parameter
