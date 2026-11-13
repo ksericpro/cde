@@ -36,45 +36,59 @@ docker compose up -d
 
 ---
 
-## 3. Automated Route & Adapter Setup (Recommended)
+## 3. Automated Route & Adapter Setup (Step-by-Step)
 
-Use the provisioning scripts in `apigw/scripts/` to configure Kong Gateway and set the target **iMOPS IP** in one command.
+Use the provisioning scripts in `apigw/scripts/` to automatically start the CDE Data Mart / BACnet Adapter stack (`:8090`), apply the PostgreSQL Medallion schema, attach `kong-gateway` to `cde-network`, provision the Kong routes & `X-API-Key` security, and set the target **iMOPS IP** (`192.168.50.197:13000`) in one command.
 
-* **PowerShell Script:** [apigw/scripts/setup_bacnet_ingestion.ps1](file:///c:/Projects/cde/apigw/scripts/setup_bacnet_ingestion.ps1)
-* **Bash Script:** [apigw/scripts/setup_bacnet_ingestion.sh](file:///c:/Projects/cde/apigw/scripts/setup_bacnet_ingestion.sh)
+* **Bash Script (Linux Production / WSL):** [apigw/scripts/setup_bacnet_ingestion.sh](file:///c:/Projects/cde/apigw/scripts/setup_bacnet_ingestion.sh)
+* **PowerShell Script (Windows):** [apigw/scripts/setup_bacnet_ingestion.ps1](file:///c:/Projects/cde/apigw/scripts/setup_bacnet_ingestion.ps1)
 
-### Option A: PowerShell (Windows)
+### Option A: Production Linux Server (`Bash`)
+
+```bash
+# 1. Pull latest code on the production server
+git pull
+
+# 2. Run the setup script with the target iMOPS IP (192.168.50.197:13000)
+chmod +x apigw/scripts/setup_bacnet_ingestion.sh
+./apigw/scripts/setup_bacnet_ingestion.sh 192.168.50.197:13000
+```
+
+**What `setup_bacnet_ingestion.sh` Does Automatically:**
+1. Creates `cde-network` (if not present) and attaches `kong-gateway` to `cde-network`.
+2. Starts `datamart/docker-compose.yml` (`cde-datamart-db`, `cde-minio`, `cde-datamart-etl`) and restarts `cde-datamart-etl` so it loads the latest adapter code.
+3. Applies `datamart/sql/01_init_schemas_and_tables.sql` (`silver.bacnet_controllers`, `silver.bacnet_sensor_history`, `mart_security.dm_bacnet_sensors`).
+4. Provisions `cde-bacnet-adapter-service`, routes (`/api/v1/bacnet/telemetry`, `/api/v1/bacnet/devices`, `/api/v1/bacnet/status`), plugins (`key-auth`, `rate-limiting`), and consumer `zaarr-bacnet-gw-01` (`zaarr-bacnet-gw01-key-2026`), then reloads Kong.
+5. Configures the CDE BACnet Adapter outbound target to `http://192.168.50.197:13000`.
+
+### Option B: Windows (`PowerShell`)
 
 ```powershell
 cd c:\Projects\cde
 
 # Pass the target iMOPS IP address (defaults to port 13000 if no port is specified):
-.\apigw\scripts\setup_bacnet_ingestion.ps1 -ImopsIp "10.65.51.252"
+.\apigw\scripts\setup_bacnet_ingestion.ps1 -ImopsIp "192.168.50.197:13000"
 
 # Or specify custom IP:Port and custom X-API-Key secret:
 .\apigw\scripts\setup_bacnet_ingestion.ps1 `
-  -ImopsIp "10.65.51.252:13000" `
+  -ImopsIp "192.168.50.197:13000" `
   -ApiKey "zaarr-bacnet-gw01-key-2026"
 
 # For local Docker testing on the same machine:
 .\apigw\scripts\setup_bacnet_ingestion.ps1 -ImopsIp "localhost:13000"
 ```
 
-### Option B: Bash (Linux / macOS / WSL)
-
-```bash
-cd /c/Projects/cde
-chmod +x apigw/scripts/setup_bacnet_ingestion.sh
-
-# Usage: ./setup_bacnet_ingestion.sh [IMOPS_IP] [API_KEY]
-./apigw/scripts/setup_bacnet_ingestion.sh 10.65.51.252 zaarr-bacnet-gw01-key-2026
-```
+### Option C: Cloudflare Tunnel Setup (Public HTTPS Ingress)
+To expose Kong Gateway (`:8088`) securely over HTTPS (`https://isems-office-cde.somesolutions.xyz`) for the remote BACnet edge gateway:
+* **Cloudflare Public Hostname:** `isems-office-cde.somesolutions.xyz`
+* **Service Type:** `HTTP`
+* **Target URL:** `localhost:8088` *(or `http://127.0.0.1:8088`)*
 
 ### How the `ImopsIp` Parameter Is Resolved
 | Input Parameter (`-ImopsIp` / `$1`) | Resolved Outbound iMOPS Base URL |
 | :--- | :--- |
-| `"10.65.51.252"` | `http://10.65.51.252:13000` |
-| `"10.65.51.252:13000"` | `http://10.65.51.252:13000` |
+| `"192.168.50.197"` | `http://192.168.50.197:13000` |
+| `"192.168.50.197:13000"` | `http://192.168.50.197:13000` |
 | `"https://imops.example.com"` | `https://imops.example.com` |
 | `"localhost:13000"` or `"127.0.0.1"` | `http://host.docker.internal:13000` *(Docker bridge)* |
 
@@ -162,46 +176,52 @@ curl.exe -i -X POST http://localhost:8090/api/v1/bacnet/config \
 
 ---
 
-## 7. How to Test `cde-bacnet-adapter-service`
+## 7. How to Verify & Test `cde-bacnet-adapter-service`
 
-### Option A: Automated 4-Step Test Script (Fastest)
+### Option A: 1-Click Browser Live Status Check
+Because Kong's `key-auth` plugin accepts `?apikey=...` in the query string as well as the `X-API-Key` header, open either link in your browser to inspect `"status": "UP"`, `targetImopsBaseUrl`, `datamartDatabaseCounts`, cached Optergy P864 controller, and the latest 12 sensors:
+
+* **Production (Cloudflare Tunnel):** **[https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026](https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026)**
+* **Local (`localhost:8088`):** **[http://localhost:8088/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026](http://localhost:8088/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026)**
+
+### Option B: Automated 4-Step Test Script (Fastest)
 Run [apigw/scripts/test_bacnet_ingestion.ps1](file:///c:/Projects/cde/apigw/scripts/test_bacnet_ingestion.ps1) to automatically test `401` auth blocking, `POST /api/v1/bacnet/devices`, `POST /api/v1/bacnet/telemetry`, and `GET /api/v1/bacnet/status`:
 
 ```powershell
 cd c:\Projects\cde
+
+# Test Local Kong (:8088):
 .\apigw\scripts\test_bacnet_ingestion.ps1
+
+# Test Production Cloudflare Tunnel:
+.\apigw\scripts\test_bacnet_ingestion.ps1 -GatewayBaseUrl "https://isems-office-cde.somesolutions.xyz"
 ```
-
-### Option B: 1-Click Browser Live Status Check
-Because Kong's `key-auth` plugin accepts `?apikey=...` in the query string as well as the `X-API-Key` header, open this link in your browser to inspect the live adapter state, cached Optergy P864 controller, latest 12 sensors, and MinIO Data Lake archive path:
-
-* **[http://localhost:8088/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026](http://localhost:8088/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026)**
 
 ### Option C: Manual Step-by-Step `curl.exe` Commands
 
+*(Replace `https://isems-office-cde.somesolutions.xyz` with `http://localhost:8088` if testing locally)*
+
 #### Step 1: Verify Unauthenticated Request Is Blocked (`401 Unauthorized`)
-```bash
-curl.exe -i -X POST http://localhost:8088/api/v1/bacnet/telemetry \
-  -H "Content-Type: application/json" \
-  -d "{}"
+```powershell
+curl.exe -i -X POST https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/telemetry -H "Content-Type: application/json" -d "{}"
 ```
 *Expected:* `HTTP/1.1 401 Unauthorized` (`{"message":"No API key found in request"}`).
 
 #### Step 2: Send Controller Discovery / Health Status (`POST /api/v1/bacnet/devices`)
 ```powershell
-curl.exe -i -X POST http://localhost:8088/api/v1/bacnet/devices -H "Content-Type: application/json" -H "User-Agent: zaarr-bacnet-gw/1.0" -H "X-API-Key: zaarr-bacnet-gw01-key-2026" --data-binary "@apigw/scripts/fixtures/bacnet_device.json"
+curl.exe -i -X POST https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/devices -H "Content-Type: application/json" -H "User-Agent: zaarr-bacnet-gw/1.0" -H "X-API-Key: zaarr-bacnet-gw01-key-2026" --data-binary "@apigw/scripts/fixtures/bacnet_device.json"
 ```
 *Expected:* `HTTP/1.1 202 Accepted` with `{"status":"accepted","device_id":864077,"online":true}`.
 
 #### Step 3: Send Telemetry Batch (`POST /api/v1/bacnet/telemetry`)
 ```powershell
-curl.exe -i -X POST http://localhost:8088/api/v1/bacnet/telemetry -H "Content-Type: application/json" -H "User-Agent: zaarr-bacnet-gw/1.0" -H "X-API-Key: zaarr-bacnet-gw01-key-2026" --data-binary "@apigw/scripts/fixtures/bacnet_telemetry.json"
+curl.exe -i -X POST https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/telemetry -H "Content-Type: application/json" -H "User-Agent: zaarr-bacnet-gw/1.0" -H "X-API-Key: zaarr-bacnet-gw01-key-2026" --data-binary "@apigw/scripts/fixtures/bacnet_telemetry.json"
 ```
 *Expected:* `HTTP/1.1 202 Accepted` with `{"status":"accepted","batch_id":"20261113T012000Z-42","sensors_queued":2}`.
 
 #### Step 4: Inspect Transformed Payload & Queue Delivery Status (`GET /api/v1/bacnet/status`)
 ```powershell
-curl.exe -s http://localhost:8088/api/v1/bacnet/status -H "X-API-Key: zaarr-bacnet-gw01-key-2026"
+curl.exe -s https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/status -H "X-API-Key: zaarr-bacnet-gw01-key-2026"
 ```
 
 ---
@@ -214,11 +234,11 @@ Provide the following API Gateway endpoints, headers, and configuration block to
 
 | Setting | Value to Configure on `zaarr-bacnet-gw-01` |
 | :--- | :--- |
-| **API Gateway Base URL (HTTP)** | `http://<CDE_SERVER_IP>:8088` *(or `http://localhost:8088` for local testing)* |
-| **API Gateway Base URL (HTTPS)** | `https://<CDE_SERVER_IP>:8443` |
-| **1. Sensor Telemetry Push Endpoint** | **`POST /api/v1/bacnet/telemetry`**<br>Full URL: `http://<CDE_SERVER_IP>:8088/api/v1/bacnet/telemetry` |
-| **2. Controller Discovery / Status Endpoint** | **`POST /api/v1/bacnet/devices`**<br>Full URL: `http://<CDE_SERVER_IP>:8088/api/v1/bacnet/devices` |
-| **3. Status / Verification Endpoint (Optional)** | **`GET /api/v1/bacnet/status`**<br>Full URL: `http://<CDE_SERVER_IP>:8088/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026` |
+| **Production Base URL (Cloudflare Tunnel HTTPS)** | **`https://isems-office-cde.somesolutions.xyz`** |
+| **LAN / Local Base URL (HTTP)** | `http://<CDE_SERVER_IP>:8088` *(or `http://localhost:8088`)* |
+| **1. Sensor Telemetry Push Endpoint** | **`POST /api/v1/bacnet/telemetry`**<br>Full URL: `https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/telemetry` |
+| **2. Controller Discovery / Status Endpoint** | **`POST /api/v1/bacnet/devices`**<br>Full URL: `https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/devices` |
+| **3. Status / Verification Endpoint (Optional)** | **`GET /api/v1/bacnet/status`**<br>Full URL: `https://isems-office-cde.somesolutions.xyz/api/v1/bacnet/status?apikey=zaarr-bacnet-gw01-key-2026` |
 | **Authentication Header** | `X-API-Key: zaarr-bacnet-gw01-key-2026` |
 | **Content-Type Header** | `Content-Type: application/json` |
 | **User-Agent Header** | `User-Agent: zaarr-bacnet-gw/1.0` |
@@ -229,13 +249,13 @@ Provide the following API Gateway endpoints, headers, and configuration block to
 ```yaml
 cde:
   enabled: true
-  base_url: "http://<CDE_SERVER_IP>:8088"
+  base_url: "https://isems-office-cde.somesolutions.xyz"
   telemetry_endpoint: "/api/v1/bacnet/telemetry"
   devices_endpoint: "/api/v1/bacnet/devices"
   api_key: "zaarr-bacnet-gw01-key-2026"
   auth_header: "X-API-Key"
   timeout_seconds: 10
-  verify_tls: false
+  verify_tls: true
 ```
 
 ---
