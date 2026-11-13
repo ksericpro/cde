@@ -284,3 +284,72 @@ BEGIN
 END;
 $$;
 
+-- =============================================================================
+-- BACNET EDGE GATEWAY TABLES (Silver Curated & Gold Published Mart)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS silver.bacnet_controllers (
+    device_id             INTEGER PRIMARY KEY,
+    gateway_id            VARCHAR(80) NOT NULL DEFAULT 'zaarr-bacnet-gw-01',
+    site_name             VARCHAR(150) NOT NULL DEFAULT 'Smart Nation Exhibition System',
+    name                  VARCHAR(120) NOT NULL,
+    model                 VARCHAR(60) DEFAULT 'P864',
+    vendor_name           VARCHAR(80) DEFAULT 'Optergy',
+    vendor_id             INTEGER DEFAULT 515,
+    firmware_revision     VARCHAR(40) DEFAULT '2.4.0',
+    ip_address            VARCHAR(60),
+    address               VARCHAR(80),
+    online                BOOLEAN NOT NULL DEFAULT TRUE,
+    communication_status  VARCHAR(40) NOT NULL DEFAULT 'online',
+    point_count           INTEGER DEFAULT 12,
+    discovered_at         TIMESTAMPTZ,
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS silver.bacnet_sensor_history (
+    reading_id            BIGSERIAL PRIMARY KEY,
+    batch_id              VARCHAR(100),
+    gateway_id            VARCHAR(80) NOT NULL DEFAULT 'zaarr-bacnet-gw-01',
+    site_name             VARCHAR(150) NOT NULL DEFAULT 'Smart Nation Exhibition System',
+    device_id             INTEGER NOT NULL DEFAULT 864077,
+    sensor_id             VARCHAR(40) NOT NULL,
+    group_label           VARCHAR(80),
+    sensor_name           VARCHAR(160),
+    metric                VARCHAR(100),
+    category              VARCHAR(40),
+    value                 DOUBLE PRECISION,
+    unit                  VARCHAR(30),
+    display_text          VARCHAR(120),
+    severity              VARCHAR(30),
+    is_triggered          BOOLEAN DEFAULT FALSE,
+    is_alarm              BOOLEAN DEFAULT FALSE,
+    update_type           VARCHAR(20),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ingested_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_silver_bacnet_hist_sensor ON silver.bacnet_sensor_history(sensor_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS mart_security.dm_bacnet_sensors (
+    sensor_id             VARCHAR(40) PRIMARY KEY,
+    site_name             VARCHAR(150) NOT NULL DEFAULT 'Smart Nation Exhibition System',
+    gateway_id            VARCHAR(80) NOT NULL DEFAULT 'zaarr-bacnet-gw-01',
+    controller_device_id  INTEGER NOT NULL DEFAULT 864077,
+    controller_name       VARCHAR(120) DEFAULT 'P864-864077',
+    controller_online     BOOLEAN DEFAULT TRUE,
+    group_label           VARCHAR(80),
+    sensor_name           VARCHAR(160),
+    metric                VARCHAR(100),
+    category              VARCHAR(40),
+    value                 DOUBLE PRECISION,
+    unit                  VARCHAR(30),
+    display_text          VARCHAR(120),
+    severity              VARCHAR(30),
+    is_triggered          BOOLEAN DEFAULT FALSE,
+    is_alarm              BOOLEAN DEFAULT FALSE,
+    update_type           VARCHAR(20),
+    last_batch_id         VARCHAR(100),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    refreshed_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+

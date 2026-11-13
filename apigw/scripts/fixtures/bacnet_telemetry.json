@@ -1,0 +1,66 @@
+{
+  "gateway_id": "zaarr-bacnet-gw-01",
+  "site_name": "Smart Nation Exhibition System",
+  "batch_id": "20261113T012000Z-42",
+  "sent_at": "2026-11-13T01:20:00Z",
+  "count": 2,
+  "readings": [
+    {
+      "timestamp": "2026-11-13T01:19:59.812Z",
+      "source_type": "poll",
+      "device_id": 864077,
+      "device_name": "P864-864077",
+      "controller_model": "P864",
+      "device_address": "192.168.0.160:47808",
+      "object_type": "analog-input",
+      "object_instance": 101,
+      "object_id": "analog-input:101",
+      "short_object_id": "AI-101",
+      "point_name": "BW-INT-M (WIRELESS AIR TOUCH DISPLAY)",
+      "property_label": "Temperature",
+      "dashboard_label": "BW-INT-M",
+      "connection_bus": "BG-1000-M (Wireless)",
+      "value": 23.45,
+      "value_text": "23.45 °C",
+      "unit": "°C",
+      "unit_id": 62,
+      "is_triggered": false,
+      "is_alarm": false,
+      "quality": "good",
+      "status_flags": {
+        "in_alarm": false,
+        "fault": false,
+        "overridden": false,
+        "out_of_service": false
+      }
+    },
+    {
+      "timestamp": "2026-11-13T01:19:59.850Z",
+      "source_type": "cov",
+      "device_id": 864077,
+      "device_name": "P864-864077",
+      "controller_model": "P864",
+      "device_address": "192.168.0.160:47808",
+      "object_type": "binary-input",
+      "object_instance": 1,
+      "object_id": "binary-input:1",
+      "short_object_id": "BI-1",
+      "point_name": "WD3 (WATER LEAK)",
+      "property_label": "Water detected",
+      "dashboard_label": "WD3",
+      "connection_bus": "IN 1 • Dry Contact (LED 1)",
+      "value": 1,
+      "value_text": "Water Detected",
+      "is_triggered": true,
+      "is_alarm": true,
+      "quality": "alarm",
+      "status_flags": {
+        "in_alarm": false,
+        "fault": false,
+        "overridden": false,
+        "out_of_service": false
+      }
+    }
+  ]
+}
+

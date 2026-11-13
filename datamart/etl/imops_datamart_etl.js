@@ -30,7 +30,7 @@ const crypto = require('crypto');
 const { URL } = require('url');
 const { Pool } = require('pg');
 const { MongoClient } = require('mongodb');
-const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -139,6 +139,27 @@ async function uploadToMinio(bucket, key, bodyBuffer, contentType = 'application
     })
   );
   return `s3://${bucket}/${key}`;
+}
+
+async function deleteMinioPrefix(bucket, prefix) {
+  let deletedCount = 0;
+  try {
+    const listed = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+      })
+    );
+    for (const obj of listed.Contents || []) {
+      if (obj.Key) {
+        await s3Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }));
+        deletedCount += 1;
+      }
+    }
+  } catch (err) {
+    console.warn(`[MinIO Delete] Could not clear s3://${bucket}/${prefix}:`, err.message);
+  }
+  return deletedCount;
 }
 
 function toCsv(rows) {
@@ -1788,12 +1809,727 @@ const server = http.createServer(async (req, res) => {
       );
     }
 
+    // -------------------------------------------------------------------------
+    // 9. BACnet Edge Gateway Ingestion & Transformation Adapter
+    //    (zaarr-bacnet-gw-01 -> Kong :8088 -> CDE Adapter :8090 -> iMOPS)
+    // -------------------------------------------------------------------------
+    if (pathname === '/api/v1/bacnet/telemetry' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const result = enqueueBacnetTelemetry(body);
+      return sendResponse(res, 202, result);
+    }
+
+    if (pathname === '/api/v1/bacnet/devices' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const result = enqueueBacnetDeviceStatus(body);
+      return sendResponse(res, 202, result);
+    }
+
+    if (pathname === '/api/v1/bacnet/config' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      if (body.imopsBaseUrl) {
+        bacnetRuntimeConfig.imopsBaseUrl = String(body.imopsBaseUrl).replace(/\/+$/, '');
+      }
+      if (body.imopsApiKey !== undefined) {
+        bacnetRuntimeConfig.imopsApiKey = String(body.imopsApiKey);
+      }
+      if (body.imopsBasicUser) {
+        bacnetRuntimeConfig.imopsBasicUser = String(body.imopsBasicUser);
+      }
+      if (body.imopsBasicPass) {
+        bacnetRuntimeConfig.imopsBasicPass = String(body.imopsBasicPass);
+      }
+      if (body.sensorIdMap && typeof body.sensorIdMap === 'object') {
+        Object.assign(bacnetRuntimeConfig.sensorIdMap, body.sensorIdMap);
+      }
+      console.log(`[BACnet] Updated target iMOPS Base URL -> ${bacnetRuntimeConfig.imopsBaseUrl}`);
+      return sendResponse(res, 200, {
+        status: 'updated',
+        imopsBaseUrl: bacnetRuntimeConfig.imopsBaseUrl,
+        endpoints: {
+          updates: `${bacnetRuntimeConfig.imopsBaseUrl}/api/v1/sensors/bacnet/updates`,
+          controllerStatus: `${bacnetRuntimeConfig.imopsBaseUrl}/api/v1/sensors/bacnet/controller-status`,
+        },
+        sensorIdMap: bacnetRuntimeConfig.sensorIdMap,
+      });
+    }
+
+    if (pathname === '/api/v1/bacnet/reset' && req.method === 'POST') {
+      for (const k of Object.keys(bacnetControllerCache)) delete bacnetControllerCache[k];
+      for (const k of Object.keys(bacnetLatestSensors)) delete bacnetLatestSensors[k];
+      bacnetQueue.length = 0;
+      bacnetLastOutboundPayload = null;
+      bacnetMetrics.telemetryBatchesReceived = 0;
+      bacnetMetrics.deviceSyncsReceived = 0;
+      bacnetMetrics.sensorReadingsProcessed = 0;
+      bacnetMetrics.imopsUpdatesForwarded = 0;
+      bacnetMetrics.imopsControllerStatusForwarded = 0;
+      bacnetMetrics.imopsDeliveryRetries = 0;
+      bacnetMetrics.lastBatchReceivedAt = null;
+      bacnetMetrics.lastImopsForwardStatus = null;
+      delete bacnetMetrics.lastLakehouseArchive;
+      await pgPool.query(`
+        DELETE FROM raw.imops_api_payloads WHERE endpoint LIKE '/api/v1/bacnet%';
+        DELETE FROM silver.bacnet_controllers;
+        DELETE FROM silver.bacnet_sensor_history;
+        DELETE FROM mart_security.dm_bacnet_sensors;
+        DELETE FROM silver.fact_incidents_current WHERE incident_number LIKE 'BACNET-%';
+        SELECT mart_security.refresh_security_datamarts();
+      `);
+      const minioRawDeleted = await deleteMinioPrefix('lake-raw', 'bacnet/');
+      const minioCuratedDeleted = await deleteMinioPrefix('lake-curated', 'bacnet/');
+      const minioPublishDeleted = await deleteMinioPrefix('lake-publish', 'mart_security/dm_bacnet_sensors');
+      return sendResponse(res, 200, {
+        status: 'reset',
+        message: 'BACnet adapter memory, PostgreSQL tables (Bronze/Silver/Gold), and MinIO objects cleared.',
+        minioObjectsDeleted: {
+          lakeRaw: minioRawDeleted,
+          lakeCurated: minioCuratedDeleted,
+          lakePublish: minioPublishDeleted,
+        },
+      });
+    }
+
+    if (pathname === '/api/v1/datamart/security/bacnet-sensors' && req.method === 'GET') {
+      const { rows } = await pgPool.query(
+        `SELECT * FROM mart_security.dm_bacnet_sensors ORDER BY category ASC, sensor_id ASC LIMIT $1`,
+        [limit]
+      );
+      return sendResponse(
+        res,
+        200,
+        format === 'csv' ? rows : { count: rows.length, data: rows },
+        format,
+        'dm_bacnet_sensors.csv'
+      );
+    }
+
+    if (pathname === '/api/v1/bacnet/status' && req.method === 'GET') {
+      const dbStats = (
+        await pgPool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM raw.imops_api_payloads WHERE endpoint LIKE '/api/v1/bacnet%')::int AS bronze_bacnet_batches,
+            (SELECT COUNT(*) FROM silver.bacnet_controllers)::int AS silver_controllers,
+            (SELECT COUNT(*) FROM silver.bacnet_sensor_history)::int AS silver_sensor_history_rows,
+            (SELECT COUNT(*) FROM mart_security.dm_bacnet_sensors)::int AS gold_published_sensors
+        `)
+      ).rows[0];
+      const dbControllers = (await pgPool.query(`SELECT * FROM silver.bacnet_controllers ORDER BY updated_at DESC`)).rows;
+      const dbGoldSensors = (
+        await pgPool.query(`SELECT * FROM mart_security.dm_bacnet_sensors ORDER BY sensor_id ASC`)
+      ).rows;
+
+      return sendResponse(res, 200, {
+        status: 'UP',
+        adapter: 'CDE BACnet Ingestion & Transformation Adapter',
+        targetImopsBaseUrl: bacnetRuntimeConfig.imopsBaseUrl,
+        targetOutboundEndpoints: {
+          sensorUpdates: `${bacnetRuntimeConfig.imopsBaseUrl}/api/v1/sensors/bacnet/updates`,
+          controllerStatus: `${bacnetRuntimeConfig.imopsBaseUrl}/api/v1/sensors/bacnet/controller-status`,
+        },
+        queueDepth: bacnetQueue.length,
+        metrics: bacnetMetrics,
+        datamartDatabaseCounts: dbStats,
+        controllers: dbControllers.length > 0 ? dbControllers : Object.values(bacnetControllerCache),
+        latestSensors: dbGoldSensors.length > 0 ? dbGoldSensors : Object.values(bacnetLatestSensors),
+        lastTransformedPayload: bacnetLastOutboundPayload,
+      });
+    }
+
     return sendResponse(res, 404, { error: 'Not Found', path: pathname });
   } catch (err) {
     console.error('[API] Request error:', err);
     return sendResponse(res, 500, { error: err.message });
   }
 });
+
+// -----------------------------------------------------------------------------
+// BACnet Adapter State, Transformation Rules & Async Retry Worker
+// -----------------------------------------------------------------------------
+const bacnetRuntimeConfig = {
+  imopsBaseUrl: (process.env.BACNET_IMOPS_BASE_URL || IMOPS_BASE_URL || 'http://host.docker.internal:13000').replace(/\/+$/, ''),
+  imopsApiKey: process.env.BACNET_IMOPS_API_KEY || '',
+  imopsBasicUser: process.env.BACNET_IMOPS_USER || IMOPS_USER,
+  imopsBasicPass: process.env.BACNET_IMOPS_PASS || IMOPS_PASS,
+  cachedBearerToken: null,
+  // Configurable lookup map from short_object_id -> IMOPS sensor_id
+  sensorIdMap: {
+    'AI-101': 'AI-101',
+    'AI-102': 'AI-102',
+    'AV-27126': 'AV-27126',
+    'AI-201': 'AI-201',
+    'AI-202': 'AI-202',
+    'BI-1': 'BI-1',
+    'BI-2': 'BI-2',
+    'BI-3': 'BI-3',
+    'BI-4': 'BI-4',
+    'BI-5': 'BI-5',
+    'BI-6': 'BI-6',
+    'BI-7': 'BI-7',
+  },
+};
+
+const bacnetControllerCache = {};
+
+const bacnetLatestSensors = {};
+const bacnetQueue = [];
+let isBacnetWorkerRunning = false;
+let bacnetLastOutboundPayload = null;
+
+const bacnetMetrics = {
+  telemetryBatchesReceived: 0,
+  deviceSyncsReceived: 0,
+  sensorReadingsProcessed: 0,
+  imopsUpdatesForwarded: 0,
+  imopsControllerStatusForwarded: 0,
+  imopsDeliveryRetries: 0,
+  lastBatchReceivedAt: null,
+  lastImopsForwardStatus: null,
+};
+
+function extractIpFromAddress(addr) {
+  if (!addr) return '192.168.0.160';
+  return String(addr).split(':')[0].trim();
+}
+
+function computeBacnetCategory(objectType) {
+  const ot = String(objectType || '').toLowerCase();
+  if (ot.startsWith('analog-')) return 'environmental';
+  if (ot.startsWith('binary-')) return 'safety_security';
+  return 'environmental';
+}
+
+function computeBacnetSeverity(reading) {
+  const flags = reading.status_flags || {};
+  const quality = String(reading.quality || '').toLowerCase();
+  if (flags.fault === true || flags.out_of_service === true || quality === 'fault') {
+    return 'fault';
+  }
+  if (reading.is_alarm === true) {
+    return 'alarm';
+  }
+  if (reading.is_triggered === true && !reading.is_alarm) {
+    return 'event';
+  }
+  return 'normal';
+}
+
+function transformBacnetBatchForImops(envelope) {
+  const readings = Array.isArray(envelope.readings) ? envelope.readings : [];
+  const firstReading = readings[0] || {};
+  const devId = firstReading.device_id || 864077;
+  const cachedCtrl = bacnetControllerCache[devId] || bacnetControllerCache[864077] || {};
+
+  const ipAddr = firstReading.device_address
+    ? extractIpFromAddress(firstReading.device_address)
+    : cachedCtrl.ip_address || '192.168.0.160';
+
+  const controllerBlock = {
+    device_id: Number(devId),
+    name: firstReading.device_name || cachedCtrl.name || `P864-${devId}`,
+    model: firstReading.controller_model || cachedCtrl.model || 'P864',
+    ip_address: ipAddr,
+    online: cachedCtrl.online !== undefined ? Boolean(cachedCtrl.online) : true,
+    communication_status: cachedCtrl.communication_status || 'online',
+  };
+
+  const transformedSensors = readings.map((r) => {
+    const shortId = String(r.short_object_id || r.object_id || 'UNKNOWN').trim();
+    const mappedSensorId = bacnetRuntimeConfig.sensorIdMap[shortId] || shortId;
+    const sensorObj = {
+      sensor_id: mappedSensorId,
+      group: r.dashboard_label || shortId,
+      sensor_name: r.point_name || shortId,
+      metric: r.property_label || 'Value',
+      category: computeBacnetCategory(r.object_type),
+      value: r.value,
+      unit: r.unit !== undefined && r.unit !== null ? String(r.unit) : '',
+      display_text: r.value_text !== undefined ? String(r.value_text) : String(r.value ?? ''),
+      severity: computeBacnetSeverity(r),
+      is_triggered: Boolean(r.is_triggered),
+      is_alarm: Boolean(r.is_alarm),
+      update_type: r.source_type || 'poll',
+      updated_at: r.timestamp || envelope.sent_at || new Date().toISOString(),
+    };
+    bacnetLatestSensors[mappedSensorId] = sensorObj;
+    return sensorObj;
+  });
+
+  return {
+    site_name: envelope.site_name || 'Smart Nation Exhibition System',
+    gateway_id: envelope.gateway_id || 'zaarr-bacnet-gw-01',
+    batch_id: envelope.batch_id || `batch-${Date.now()}`,
+    controller: controllerBlock,
+    sent_at: envelope.sent_at || new Date().toISOString(),
+    sensors: transformedSensors,
+  };
+}
+
+function enqueueBacnetTelemetry(envelope) {
+  bacnetMetrics.telemetryBatchesReceived += 1;
+  bacnetMetrics.lastBatchReceivedAt = new Date().toISOString();
+  const count = Array.isArray(envelope.readings) ? envelope.readings.length : 0;
+  bacnetMetrics.sensorReadingsProcessed += count;
+
+  const transformed = transformBacnetBatchForImops(envelope);
+  bacnetLastOutboundPayload = transformed;
+
+  bacnetQueue.push({
+    type: 'sensor_updates',
+    path: '/api/v1/sensors/bacnet/updates',
+    rawEnvelope: envelope,
+    payload: transformed,
+    attempts: 0,
+    enqueuedAt: Date.now(),
+  });
+
+  setImmediate(processBacnetQueue);
+  return {
+    status: 'accepted',
+    batch_id: transformed.batch_id,
+    sensors_queued: transformed.sensors.length,
+  };
+}
+
+function enqueueBacnetDeviceStatus(envelope) {
+  bacnetMetrics.deviceSyncsReceived += 1;
+  const dev = envelope.device || {};
+  const devId = dev.device_id || 864077;
+  const prev = bacnetControllerCache[devId];
+  const onlineChanged = !prev || prev.online !== Boolean(dev.online);
+
+  const updatedCtrl = {
+    device_id: Number(devId),
+    name: dev.object_name || dev.name || `P864-${devId}`,
+    model: dev.model_name || dev.model || 'P864',
+    vendor_name: dev.vendor_name || 'Optergy',
+    vendor_id: dev.vendor_id || 515,
+    firmware_revision: dev.firmware_revision || '2.4.0',
+    ip_address: extractIpFromAddress(dev.address || '192.168.0.160:47808'),
+    address: dev.address || '192.168.0.160:47808',
+    online: dev.online !== undefined ? Boolean(dev.online) : true,
+    communication_status: dev.communication_status || (dev.online === false ? 'offline' : 'online'),
+    point_count: dev.point_count || 12,
+    discovered_at: dev.discovered_at || new Date().toISOString(),
+    updated_at: envelope.sent_at || new Date().toISOString(),
+  };
+
+  bacnetControllerCache[devId] = updatedCtrl;
+
+  bacnetQueue.push({
+    type: 'controller_status',
+    path: '/api/v1/sensors/bacnet/controller-status',
+    forwardToImops: onlineChanged,
+    rawEnvelope: envelope,
+    payload: {
+      site_name: envelope.site_name || 'Smart Nation Exhibition System',
+      gateway_id: envelope.gateway_id || 'zaarr-bacnet-gw-01',
+      sent_at: envelope.sent_at || new Date().toISOString(),
+      controller: {
+        device_id: updatedCtrl.device_id,
+        name: updatedCtrl.name,
+        model: updatedCtrl.model,
+        vendor_name: updatedCtrl.vendor_name,
+        firmware_revision: updatedCtrl.firmware_revision,
+        ip_address: updatedCtrl.ip_address,
+        online: updatedCtrl.online,
+        communication_status: updatedCtrl.communication_status,
+        point_count: updatedCtrl.point_count,
+      },
+    },
+    attempts: 0,
+    enqueuedAt: Date.now(),
+  });
+  setImmediate(processBacnetQueue);
+
+  return {
+    status: 'accepted',
+    device_id: updatedCtrl.device_id,
+    online: updatedCtrl.online,
+    forwarded_status_change: onlineChanged,
+  };
+}
+
+function postJsonToImops(urlString, payload) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(urlString);
+      const lib = parsed.protocol === 'https:' ? https : http;
+      const bodyStr = JSON.stringify(payload);
+      const headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(bodyStr),
+        'User-Agent': 'cde-bacnet-adapter/1.0',
+      };
+      if (bacnetRuntimeConfig.imopsApiKey) {
+        headers['X-API-Key'] = bacnetRuntimeConfig.imopsApiKey;
+      }
+      if (bacnetRuntimeConfig.cachedBearerToken) {
+        headers['Authorization'] = `Bearer ${bacnetRuntimeConfig.cachedBearerToken}`;
+      } else if (bacnetRuntimeConfig.imopsBasicUser && bacnetRuntimeConfig.imopsBasicPass) {
+        headers['Authorization'] =
+          'Basic ' +
+          Buffer.from(`${bacnetRuntimeConfig.imopsBasicUser}:${bacnetRuntimeConfig.imopsBasicPass}`).toString('base64');
+      }
+
+      const req = lib.request(
+        {
+          hostname: parsed.hostname,
+          port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+          path: parsed.pathname + parsed.search,
+          method: 'POST',
+          headers,
+          timeout: 8000,
+          rejectUnauthorized: false,
+        },
+        (res) => {
+          let raw = '';
+          res.on('data', (chunk) => (raw += chunk));
+          res.on('end', () => {
+            resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, body: raw });
+          });
+        }
+      );
+      req.on('error', (err) => resolve({ ok: false, status: 0, error: err.message }));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ ok: false, status: 0, error: 'timeout' });
+      });
+      req.write(bodyStr);
+      req.end();
+    } catch (err) {
+      resolve({ ok: false, status: 0, error: err.message });
+    }
+  });
+}
+
+async function persistBacnetToLakehouse(item) {
+  try {
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10);
+    const tsPart = now.toISOString().replace(/[:.]/g, '-');
+    const siteName = (item.payload && item.payload.site_name) || 'Smart Nation Exhibition System';
+    const rawStr = JSON.stringify(item.rawEnvelope || item.payload);
+    const gzBuf = zlib.gzipSync(Buffer.from(rawStr, 'utf8'));
+
+    // 1. BRONZE (Raw Zone): MinIO s3://lake-raw/bacnet/... + PostgreSQL raw.imops_api_payloads
+    const batchId = (item.payload && item.payload.batch_id) || `dev_${tsPart}`;
+    const s3RawKey =
+      item.type === 'sensor_updates'
+        ? `bacnet/telemetry/dt=${datePart}/batch_${batchId}.json.gz`
+        : `bacnet/devices/dt=${datePart}/${batchId}.json.gz`;
+    const s3RawUri = await uploadToMinio('lake-raw', s3RawKey, gzBuf, 'application/gzip');
+
+    const recCount =
+      item.type === 'sensor_updates' && item.payload && Array.isArray(item.payload.sensors)
+        ? item.payload.sensors.length
+        : 1;
+    const endpointLabel = item.type === 'sensor_updates' ? '/api/v1/bacnet/telemetry' : '/api/v1/bacnet/devices';
+
+    await pgPool.query(
+      `INSERT INTO raw.imops_api_payloads (endpoint, site_name, pulled_at, record_count, s3_object_key, raw_payload)
+       VALUES ($1, $2, NOW(), $3, $4, $5::jsonb)`,
+      [endpointLabel, siteName, recCount, s3RawUri, rawStr]
+    );
+
+    // 2. SILVER (Curated Star Schema): Upsert Location, Controller, Sensors & Active Alarm Incidents
+    const locKey = 'loc_' + makeHashKey(`${siteName}|Exhibition Hall|Level 1|BACnet Zone`);
+    await pgPool.query(
+      `INSERT INTO silver.dim_location (location_key, site_id, site_name, building_name, floor_name, zone_name, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (location_key) DO UPDATE SET updated_at = NOW()`,
+      [locKey, 'smart-nation-exhibition', siteName, 'Exhibition Hall', 'Level 1', 'BACnet Zone']
+    );
+
+    const ctrl = (item.payload && item.payload.controller) || bacnetControllerCache[864077];
+    if (ctrl) {
+      const ctrlKey = 'dev_' + makeHashKey(`${siteName}|${ctrl.name}`);
+      await pgPool.query(
+        `INSERT INTO silver.dim_device (device_key, device_id, device_name, device_type, location_key, site_name, current_health_status, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+         ON CONFLICT (device_key) DO UPDATE SET
+           current_health_status = EXCLUDED.current_health_status,
+           updated_at = NOW()`,
+        [
+          ctrlKey,
+          String(ctrl.device_id || 864077),
+          ctrl.name || 'P864-864077',
+          'BACnet Controller',
+          locKey,
+          siteName,
+          ctrl.online === false ? 'offline' : 'online',
+        ]
+      );
+
+      await pgPool.query(
+        `INSERT INTO silver.bacnet_controllers (
+           device_id, gateway_id, site_name, name, model, vendor_name, firmware_revision,
+           ip_address, address, online, communication_status, point_count, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+         ON CONFLICT (device_id) DO UPDATE SET
+           gateway_id = EXCLUDED.gateway_id,
+           site_name = EXCLUDED.site_name,
+           name = EXCLUDED.name,
+           model = EXCLUDED.model,
+           ip_address = EXCLUDED.ip_address,
+           online = EXCLUDED.online,
+           communication_status = EXCLUDED.communication_status,
+           point_count = COALESCE(EXCLUDED.point_count, silver.bacnet_controllers.point_count),
+           updated_at = NOW()`,
+        [
+          Number(ctrl.device_id || 864077),
+          (item.payload && item.payload.gateway_id) || 'zaarr-bacnet-gw-01',
+          siteName,
+          ctrl.name || 'P864-864077',
+          ctrl.model || 'P864',
+          ctrl.vendor_name || 'Optergy',
+          ctrl.firmware_revision || '2.4.0',
+          ctrl.ip_address || '192.168.0.160',
+          `${ctrl.ip_address || '192.168.0.160'}:47808`,
+          ctrl.online !== false,
+          ctrl.communication_status || 'online',
+          ctrl.point_count || 12,
+        ]
+      );
+    }
+
+    let refreshGoldMarts = false;
+    if (item.type === 'sensor_updates' && item.payload && Array.isArray(item.payload.sensors)) {
+      const gwId = item.payload.gateway_id || 'zaarr-bacnet-gw-01';
+      const ctrlDevId = Number((ctrl && ctrl.device_id) || 864077);
+      const ctrlName = (ctrl && ctrl.name) || 'P864-864077';
+      const ctrlOnline = ctrl ? ctrl.online !== false : true;
+
+      for (const s of item.payload.sensors) {
+        const sDevName = `${s.sensor_id} - ${s.sensor_name}`;
+        const sDevKey = 'dev_' + makeHashKey(`${siteName}|${sDevName}`);
+        const sHealth = s.severity === 'fault' ? 'offline' : 'online';
+        await pgPool.query(
+          `INSERT INTO silver.dim_device (device_key, device_id, device_name, device_type, location_key, site_name, current_health_status, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+           ON CONFLICT (device_key) DO UPDATE SET
+             current_health_status = EXCLUDED.current_health_status,
+             updated_at = NOW()`,
+          [sDevKey, s.sensor_id, sDevName, `BACnet (${s.category})`, locKey, siteName, sHealth]
+        );
+
+        const numVal = typeof s.value === 'number' ? s.value : parseFloat(s.value);
+        const safeNumVal = Number.isFinite(numVal) ? numVal : null;
+
+        // 2B. Insert into Silver BACnet Sensor Time-Series History
+        await pgPool.query(
+          `INSERT INTO silver.bacnet_sensor_history (
+             batch_id, gateway_id, site_name, device_id, sensor_id, group_label,
+             sensor_name, metric, category, value, unit, display_text,
+             severity, is_triggered, is_alarm, update_type, updated_at, ingested_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())`,
+          [
+            batchId,
+            gwId,
+            siteName,
+            ctrlDevId,
+            s.sensor_id,
+            s.group,
+            s.sensor_name,
+            s.metric,
+            s.category,
+            safeNumVal,
+            s.unit || '',
+            s.display_text,
+            s.severity,
+            Boolean(s.is_triggered),
+            Boolean(s.is_alarm),
+            s.update_type || 'poll',
+            s.updated_at || new Date().toISOString(),
+          ]
+        );
+
+        // 3A. Upsert into Published Gold Data Mart Table (mart_security.dm_bacnet_sensors)
+        await pgPool.query(
+          `INSERT INTO mart_security.dm_bacnet_sensors (
+             sensor_id, site_name, gateway_id, controller_device_id, controller_name, controller_online,
+             group_label, sensor_name, metric, category, value, unit, display_text,
+             severity, is_triggered, is_alarm, update_type, last_batch_id, updated_at, refreshed_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+           ON CONFLICT (sensor_id) DO UPDATE SET
+             site_name = EXCLUDED.site_name,
+             gateway_id = EXCLUDED.gateway_id,
+             controller_device_id = EXCLUDED.controller_device_id,
+             controller_name = EXCLUDED.controller_name,
+             controller_online = EXCLUDED.controller_online,
+             group_label = EXCLUDED.group_label,
+             sensor_name = EXCLUDED.sensor_name,
+             metric = EXCLUDED.metric,
+             category = EXCLUDED.category,
+             value = EXCLUDED.value,
+             unit = EXCLUDED.unit,
+             display_text = EXCLUDED.display_text,
+             severity = EXCLUDED.severity,
+             is_triggered = EXCLUDED.is_triggered,
+             is_alarm = EXCLUDED.is_alarm,
+             update_type = EXCLUDED.update_type,
+             last_batch_id = EXCLUDED.last_batch_id,
+             updated_at = EXCLUDED.updated_at,
+             refreshed_at = NOW()`,
+          [
+            s.sensor_id,
+            siteName,
+            gwId,
+            ctrlDevId,
+            ctrlName,
+            ctrlOnline,
+            s.group,
+            s.sensor_name,
+            s.metric,
+            s.category,
+            safeNumVal,
+            s.unit || '',
+            s.display_text,
+            s.severity,
+            Boolean(s.is_triggered),
+            Boolean(s.is_alarm),
+            s.update_type || 'poll',
+            batchId,
+            s.updated_at || new Date().toISOString(),
+          ]
+        );
+
+        const incNumber = `BACNET-864077-${s.sensor_id}`;
+        if (s.is_alarm || s.severity === 'alarm' || s.severity === 'fault') {
+          refreshGoldMarts = true;
+          const mappedSev = s.severity === 'fault' ? 'high' : 'critical';
+          await pgPool.query(
+            `INSERT INTO silver.fact_incidents_current (
+               incident_number, event_id, location_key, device_key,
+               site_name, building_name, floor_name, zone_name, device_name,
+               incident_type, title, severity, status, operator_name,
+               detected_at, is_sla_breached, source_system, first_ingested_at, last_updated_at
+             ) VALUES (
+               $1, $2, $3, $4,
+               $5, 'Exhibition Hall', 'Level 1', $6, $7,
+               $8, $9, $10, 'active', 'BACnet Edge Monitor',
+               $11, FALSE, 'zaarr-bacnet-gw-01', NOW(), NOW()
+             )
+             ON CONFLICT (incident_number) DO UPDATE SET
+               severity = EXCLUDED.severity,
+               status = 'active',
+               title = EXCLUDED.title,
+               last_updated_at = NOW()`,
+            [
+              incNumber,
+              `${item.payload.batch_id}-${s.sensor_id}`,
+              locKey,
+              sDevKey,
+              siteName,
+              s.group || 'BACnet Zone',
+              sDevName,
+              `BACnet ${s.metric}`,
+              `${s.sensor_name}: ${s.display_text}`,
+              mappedSev,
+              s.updated_at || new Date().toISOString(),
+            ]
+          );
+        } else {
+          // If previously in alarm and now normal, mark resolved
+          const resUpdate = await pgPool.query(
+            `UPDATE silver.fact_incidents_current
+             SET status = 'resolved',
+                 resolved_at = COALESCE(resolved_at, NOW()),
+                 mttr_seconds = COALESCE(mttr_seconds, GREATEST(1, EXTRACT(EPOCH FROM (NOW() - detected_at))::int)),
+                 last_updated_at = NOW()
+             WHERE incident_number = $1 AND status != 'resolved'`,
+            [incNumber]
+          );
+          if (resUpdate.rowCount > 0) refreshGoldMarts = true;
+        }
+      }
+
+      // Write Curated & Published snapshots to MinIO (s3://lake-curated & s3://lake-publish)
+      const allSensorsArr = Object.values(bacnetLatestSensors);
+      await uploadToMinio(
+        'lake-curated',
+        `bacnet/dt=${datePart}/latest_sensors.json`,
+        Buffer.from(JSON.stringify(allSensorsArr, null, 2), 'utf8'),
+        'application/json'
+      );
+      await uploadToMinio(
+        'lake-publish',
+        'mart_security/dm_bacnet_sensors.json',
+        Buffer.from(JSON.stringify(allSensorsArr, null, 2), 'utf8'),
+        'application/json'
+      );
+      await uploadToMinio(
+        'lake-publish',
+        'mart_security/dm_bacnet_sensors.csv',
+        Buffer.from(toCsv(allSensorsArr), 'utf8'),
+        'text/csv'
+      );
+    }
+
+    // 3. GOLD (Published Business Data Marts): Refresh Gold aggregates if any alarm triggered/resolved
+    if (refreshGoldMarts) {
+      await pgPool.query(`SELECT mart_security.refresh_security_datamarts()`);
+    }
+    bacnetMetrics.lastLakehouseArchive = s3RawUri;
+  } catch (err) {
+    console.warn('[BACnet Lakehouse] Persistence warning:', err.message);
+  }
+}
+
+async function processBacnetQueue() {
+  if (isBacnetWorkerRunning) return;
+  isBacnetWorkerRunning = true;
+  try {
+    while (bacnetQueue.length > 0) {
+      const item = bacnetQueue[0];
+
+      // Persist every batch to Medallion Lakehouse (Bronze -> Silver -> Gold in MinIO + PostgreSQL)
+      if (!item.lakehouseSaved) {
+        await persistBacnetToLakehouse(item);
+        item.lakehouseSaved = true;
+      }
+
+      if (item.forwardToImops === false) {
+        bacnetQueue.shift();
+        continue;
+      }
+
+      const targetUrl = `${bacnetRuntimeConfig.imopsBaseUrl}${item.path}`;
+      const res = await postJsonToImops(targetUrl, item.payload);
+
+      if (res.ok || res.status === 404) {
+        // Dequeue if accepted (2xx) or if upstream iMOPS hasn't mounted the optional receiver route yet (404)
+        bacnetQueue.shift();
+        if (item.type === 'sensor_updates') bacnetMetrics.imopsUpdatesForwarded += 1;
+        if (item.type === 'controller_status') bacnetMetrics.imopsControllerStatusForwarded += 1;
+        bacnetMetrics.lastImopsForwardStatus = {
+          at: new Date().toISOString(),
+          targetUrl,
+          httpStatus: res.status,
+          note: res.status === 404 ? 'Cached in CDE & Saved to Data Lake (upstream iMOPS endpoint returned 404)' : 'Delivered',
+        };
+      } else {
+        item.attempts += 1;
+        bacnetMetrics.imopsDeliveryRetries += 1;
+        bacnetMetrics.lastImopsForwardStatus = {
+          at: new Date().toISOString(),
+          targetUrl,
+          httpStatus: res.status,
+          error: res.error || res.body,
+          attempt: item.attempts,
+        };
+        if (item.attempts >= 3) {
+          // Drop from hot queue after 3 backoff retries (state remains cached in bacnetLatestSensors & Data Lake)
+          bacnetQueue.shift();
+        } else {
+          await new Promise((r) => setTimeout(r, Math.min(1000 * Math.pow(2, item.attempts - 1), 4000)));
+        }
+      }
+    }
+  } finally {
+    isBacnetWorkerRunning = false;
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Startup Sequence
