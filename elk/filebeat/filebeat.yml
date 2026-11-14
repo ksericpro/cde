@@ -1,0 +1,33 @@
+filebeat.inputs:
+  - type: container
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    processors:
+      - add_docker_metadata:
+          host: "unix:///var/run/docker.sock"
+      - drop_event:
+          when:
+            or:
+              - equals:
+                  container.name: "cde-filebeat"
+              - equals:
+                  container.name: "cde-logstash"
+              - not:
+                  or:
+                    - regexp:
+                        container.name: "^cde-"
+                    - regexp:
+                        container.name: "^n8n-"
+                    - regexp:
+                        container.name: "^kong-"
+                    - regexp:
+                        container.name: "^imops-"
+
+processors:
+  - add_host_metadata: ~
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+logging.level: info
+

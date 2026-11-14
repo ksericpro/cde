@@ -1,0 +1,341 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "iMOPS Server Infrastructure (Node Exporter)",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "title": "iMOPS Host CPU Utilization",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{job=\"imops-infra\", mode=\"idle\"}[1m])) * 100)",
+          "legendFormat": "CPU Busy %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "#EAB839", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "iMOPS Host RAM Usage",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "(1 - (node_memory_MemAvailable_bytes{job=\"imops-infra\"} / node_memory_MemTotal_bytes{job=\"imops-infra\"})) * 100",
+          "legendFormat": "RAM Used %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "#EAB839", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "iMOPS Disk Space Usage",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "100 - ((node_filesystem_avail_bytes{job=\"imops-infra\", mountpoint=\"/\"} or node_filesystem_avail_bytes{job=\"imops-infra\", mountpoint=\"/rootfs\"} or node_filesystem_avail_bytes{job=\"imops-infra\", mountpoint=\"/mnt/host/c\"}) / (node_filesystem_size_bytes{job=\"imops-infra\", mountpoint=\"/\"} or node_filesystem_size_bytes{job=\"imops-infra\", mountpoint=\"/rootfs\"} or node_filesystem_size_bytes{job=\"imops-infra\", mountpoint=\"/mnt/host/c\"}) * 100)",
+          "legendFormat": "Disk Used %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "#EAB839", "value": 80 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "iMOPS Host Network Traffic (In / Out)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(node_network_receive_bytes_total{job=\"imops-infra\", device!~\"lo|docker.*|veth.*\"}[1m]))",
+          "legendFormat": "Inbound (B/s)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(node_network_transmit_bytes_total{job=\"imops-infra\", device!~\"lo|docker.*|veth.*\"}[1m]))",
+          "legendFormat": "Outbound (B/s)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "binBps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "id": 200,
+      "title": "iMOPS API Gateway & Incident Monitor Telemetry",
+      "type": "row"
+    },
+    {
+      "id": 5,
+      "title": "iMOPS API Total Request Rate (RPS by Route)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum by (route, path) (rate(http_request_duration_seconds_count{job=\"imops-api\"}[1m])) or sum by (route, path) (rate(http_requests_total{job=\"imops-api\"}[1m]))",
+          "legendFormat": "{{route}}{{path}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "iMOPS API Latencies (P50 / P95 / P99)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"imops-api\"}[1m])) by (le)) * 1000",
+          "legendFormat": "P99 Latency (ms)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"imops-api\"}[1m])) by (le)) * 1000",
+          "legendFormat": "P95 Latency (ms)",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"imops-api\"}[1m])) by (le)) * 1000",
+          "legendFormat": "P50 Latency (ms)",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "iMOPS API HTTP Status Breakdown",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum by (status_code, code, status) (rate(http_requests_total{job=\"imops-api\"}[1m])) or sum by (status_code, code, status) (rate(http_request_duration_seconds_count{job=\"imops-api\"}[1m]))",
+          "legendFormat": "HTTP {{status_code}}{{code}}{{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 300,
+      "title": "iMOPS Node.js Runtime & Engine Health",
+      "type": "row"
+    },
+    {
+      "id": 8,
+      "title": "Node.js Event Loop Lag (Lag / Blocking)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "nodejs_eventloop_lag_seconds{job=\"imops-api\"} * 1000 or nodejs_eventloop_lag_mean_seconds{job=\"imops-api\"} * 1000",
+          "legendFormat": "Event Loop Lag (ms)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "nodejs_eventloop_lag_max_seconds{job=\"imops-api\"} * 1000",
+          "legendFormat": "Max Event Loop Lag (ms)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "Node.js Process Memory & Heap Allocation",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "process_resident_memory_bytes{job=\"imops-api\"}",
+          "legendFormat": "Resident Memory (RSS)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "nodejs_heap_size_used_bytes{job=\"imops-api\"}",
+          "legendFormat": "Heap Used",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "nodejs_heap_size_total_bytes{job=\"imops-api\"}",
+          "legendFormat": "Heap Total",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "iMOPS Service Availability Status",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "max(up{job=\"imops-api\"})",
+          "legendFormat": "iMOPS API Endpoint",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "max(up{job=\"imops-infra\"})",
+          "legendFormat": "iMOPS Server Node",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": { "text": "DOWN", "color": "red" },
+                "1": { "text": "UP (Online)", "color": "green" }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["imops", "external", "api", "node-exporter", "monitoring"],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+  },
+  "timezone": "browser",
+  "title": "iMOPS - External Infrastructure & API Observability",
+  "uid": "imops-infra-api-overview",
+  "version": 1
+}

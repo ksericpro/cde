@@ -37,5 +37,5 @@ Write-Host "[+] Monitoring stack deployed successfully!" -ForegroundColor Green
 Write-Host "    - Grafana Web UI:       http://localhost:3000 (admin / cdepassword123)" -ForegroundColor Green
 Write-Host "    - Prometheus Targets:   http://localhost:9090/targets" -ForegroundColor Green
 Write-Host "    - Node Exporter:        http://localhost:9100/metrics" -ForegroundColor Green
-Write-Host "    - cAdvisor:             http://localhost:8080/containers" -ForegroundColor Green
+Write-Host "    - cAdvisor:             http://localhost:8085/containers" -ForegroundColor Green
 Write-Host "=================================================================" -ForegroundColor Cyan

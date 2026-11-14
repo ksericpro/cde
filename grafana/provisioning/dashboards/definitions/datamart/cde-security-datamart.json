@@ -1,0 +1,459 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Open CDE Data Catalogue & Request API Key (:8090/catalog)",
+      "tooltip": "Browse Data Dictionary and generate Kong API Keys",
+      "type": "link",
+      "url": "http://localhost:8090/catalog"
+    },
+    {
+      "asDropdown": false,
+      "icon": "cloud",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Open Published Gold Data Mart Explorer (:8090)",
+      "tooltip": "Interactive Gold Data Mart Explorer & 1-Click CSV Download",
+      "type": "link",
+      "url": "http://localhost:8090/"
+    }
+  ],
+  "panels": [
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(total_incidents), 0)::int AS \"Total Incidents\" FROM mart_security.dm_daily_site_kpis;",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Published Incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(active_count), 0)::int AS \"Active Incidents\" FROM mart_security.dm_daily_site_kpis;",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Open Incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(resolved_count), 0)::int AS \"Resolved Incidents\" FROM mart_security.dm_daily_site_kpis;",
+          "refId": "A"
+        }
+      ],
+      "title": "Resolved Incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 15 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(AVG(avg_mtta_minutes), 2)::float8 AS \"Avg MTTA (Mins)\" FROM mart_security.dm_daily_site_kpis WHERE avg_mtta_minutes IS NOT NULL;",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg MTTA (Minutes)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 45 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(AVG(avg_mttr_minutes), 2)::float8 AS \"Avg MTTR (Mins)\" FROM mart_security.dm_daily_site_kpis WHERE avg_mttr_minutes IS NOT NULL;",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg MTTR (Minutes)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "purple", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::int AS \"Hotspot Zones\" FROM mart_security.dm_incident_hotspots;",
+          "refId": "A"
+        }
+      ],
+      "title": "Tracked Device Hotspots",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 4 },
+      "id": 7,
+      "options": {
+        "xField": "Site",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "legend": { "showLegend": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT site_name AS \"Site\", SUM(total_incidents)::int AS \"Incidents\" FROM mart_security.dm_daily_site_kpis GROUP BY site_name ORDER BY 2 DESC LIMIT 10;",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 Sites by Incident Volume (Gold Mart 1)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 4 },
+      "id": 8,
+      "options": {
+        "xField": "Incident Type",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "legend": { "showLegend": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT incident_type AS \"Incident Type\", SUM(total_incidents)::int AS \"Incidents\" FROM mart_security.dm_daily_site_kpis GROUP BY incident_type ORDER BY 2 DESC LIMIT 10;",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Incident Types (Gold Mart 1)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 },
+      "id": 9,
+      "options": {
+        "xField": "Hotspot",
+        "orientation": "horizontal",
+        "showValue": "always",
+        "legend": { "showLegend": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "orange", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT site_name || ' — ' || device_name AS \"Hotspot\", critical_alarm_count::int AS \"Critical Alarms\" FROM mart_security.dm_incident_hotspots ORDER BY critical_alarm_count DESC LIMIT 10;",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 Critical Alarm Hotspots (Gold Mart 2)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 12 },
+      "id": 10,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT incident_date::text AS incident_date, site_name, floor_name, zone_name, incident_type, severity, total_incidents, active_count, resolved_count, resolution_rate_pct::float8 AS resolution_rate_pct, avg_mtta_minutes::float8 AS avg_mtta_minutes, avg_mttr_minutes::float8 AS avg_mttr_minutes, sla_breach_count FROM mart_security.dm_daily_site_kpis ORDER BY incident_date DESC, total_incidents DESC LIMIT 150;",
+          "refId": "A"
+        }
+      ],
+      "title": "Gold Mart 1: Daily Site Security KPIs (mart_security.dm_daily_site_kpis) — [Inspect -> Data -> Download CSV]",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 12 },
+      "id": 11,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT site_name, zone_name, device_name, incident_type, critical_alarm_count, incident_count_7d, incident_count_30d, last_incident_at FROM mart_security.dm_incident_hotspots ORDER BY critical_alarm_count DESC, last_incident_at DESC NULLS LAST LIMIT 150;",
+          "refId": "A"
+        }
+      ],
+      "title": "Gold Mart 2: Recurring Incident Hotspots (mart_security.dm_incident_hotspots) — [Inspect -> Data -> Download CSV]",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 21 },
+      "id": 12,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT incident_date::text AS incident_date, site_name, operator_name, severity, incidents_handled, within_sla_count, breached_sla_count, sla_compliance_pct::float8 AS sla_compliance_pct, fastest_ack_sec, slowest_ack_sec FROM mart_security.dm_sla_compliance ORDER BY incident_date DESC, incidents_handled DESC LIMIT 150;",
+          "refId": "A"
+        }
+      ],
+      "title": "Gold Mart 3: Operator & Site SLA Compliance (mart_security.dm_sla_compliance) — [Inspect -> Data -> Download CSV]",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 21 },
+      "id": 13,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "CDESecurityDataMart" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT incident_date::text AS incident_date, site_name, device_name, device_type, offline_events_count, incidents_triggered_count, current_health_status FROM mart_security.dm_device_reliability ORDER BY incident_date DESC, incidents_triggered_count DESC LIMIT 150;",
+          "refId": "A"
+        }
+      ],
+      "title": "Gold Mart 4: Device Reliability (mart_security.dm_device_reliability) — [Inspect -> Data -> Download CSV]",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["cde", "datamart", "gold", "imops", "security"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "CDE Published Security Incident Data Mart (Gold Zone)",
+  "uid": "cde-security-datamart",
+  "version": 3
+}
+

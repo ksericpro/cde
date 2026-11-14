@@ -167,6 +167,8 @@ docker exec -it imops-redis redis-cli XREVRANGE stream:urgent + - COUNT 1
 
 ## Phase 4: Lakehouse Object Storage (MinIO - Bronze/Raw Zone)
 
+> **iMOPS Security Incident Data Mart Blueprint:** For the complete **iMOPS Security Incident Data Mart (`Raw` $\rightarrow$ `Curated` $\rightarrow$ `Published`)** Star Schema, SQL DDL (`raw.*`, `silver.*`, `mart_security.*`), gap analysis, and 4-phase implementation blueprint covering Phases 4–6, see **[data_model.md](file:///c:/Projects/cde/docs/data_model.md)**.
+
 ### Objective
 Deploy an S3-compatible object store (MinIO) to capture full, unmutated JSON payloads with lifecycle expiration policies.
 

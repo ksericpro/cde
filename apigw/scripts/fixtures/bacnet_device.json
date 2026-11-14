@@ -1,0 +1,19 @@
+{
+  "gateway_id": "zaarr-bacnet-gw-01",
+  "site_name": "Smart Nation Exhibition System",
+  "sent_at": "2026-11-13T01:20:00Z",
+  "device": {
+    "device_id": 864077,
+    "object_name": "P864-864077",
+    "model_name": "P864",
+    "vendor_name": "Optergy",
+    "vendor_id": 515,
+    "firmware_revision": "2.4.0",
+    "address": "192.168.0.160:47808",
+    "online": true,
+    "communication_status": "online",
+    "point_count": 12,
+    "discovered_at": "2026-11-13T00:00:05Z"
+  }
+}
+

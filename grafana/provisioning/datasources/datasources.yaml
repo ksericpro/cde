@@ -3,7 +3,22 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
+    uid: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
     editable: true
+
+  - name: CDE Security Data Mart
+    type: postgres
+    uid: CDESecurityDataMart
+    url: cde-datamart-db:5432
+    user: cdeadmin
+    editable: true
+    secureJsonData:
+      password: cdepassword123
+    jsonData:
+      database: cde_datamart
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false

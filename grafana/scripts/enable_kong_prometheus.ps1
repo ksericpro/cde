@@ -25,23 +25,25 @@ $plugins = Invoke-RestMethod -Uri "$KongAdminUrl/plugins" -Method Get
 $existing = $plugins.data | Where-Object { $_.name -eq "prometheus" }
 
 $body = @{
-    "name" = "prometheus"
-    "config.status_code_metrics" = "true"
-    "config.latency_metrics" = "true"
-    "config.bandwidth_metrics" = "true"
-    "config.upstream_health_metrics" = "true"
-}
+    name   = "prometheus"
+    config = @{
+        status_code_metrics     = $true
+        latency_metrics         = $true
+        bandwidth_metrics       = $true
+        upstream_health_metrics = $true
+    }
+} | ConvertTo-Json -Depth 5
 
 if ($existing) {
     Write-Host "[+] Prometheus plugin already exists (ID: $($existing.id)). Updating configuration..." -ForegroundColor Yellow
-    Invoke-RestMethod -Uri "$KongAdminUrl/plugins/$($existing.id)" -Method Patch -Body $body | Out-Null
+    Invoke-RestMethod -Uri "$KongAdminUrl/plugins/$($existing.id)" -Method Patch -ContentType "application/json" -Body $body | Out-Null
 } else {
     Write-Host "[+] Enabling global Prometheus plugin..." -ForegroundColor Yellow
-    Invoke-RestMethod -Uri "$KongAdminUrl/plugins" -Method Post -Body $body | Out-Null
+    Invoke-RestMethod -Uri "$KongAdminUrl/plugins" -Method Post -ContentType "application/json" -Body $body | Out-Null
 }
 
 Write-Host "[+] Verifying /metrics scraping endpoint..." -ForegroundColor Yellow
-$metricsRes = Invoke-WebRequest -Uri "$KongAdminUrl/metrics" -Method Get
+$metricsRes = Invoke-WebRequest -Uri "$KongAdminUrl/metrics" -Method Get -UseBasicParsing -TimeoutSec 5
 if ($metricsRes.StatusCode -eq 200) {
     Write-Host "[+] SUCCESS: Kong /metrics endpoint responded with HTTP 200 OK." -ForegroundColor Green
 } else {
