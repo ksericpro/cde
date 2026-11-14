@@ -258,6 +258,91 @@ cde:
   verify_tls: true
 ```
 
+### 8.3 Authentication Methods Across All Pipeline Hops
+
+| Pipeline Hop | Authentication Method | Credentials / Headers Used |
+| :--- | :--- | :--- |
+| **1. `zaarr-bacnet-gw-01` $\rightarrow$ Kong Gateway (`:8088`)** | **API Key (`key-auth` plugin)** | • Header: `X-API-Key: zaarr-bacnet-gw01-key-2026` *(or query `?apikey=...`)*<br>• Consumer: `zaarr-bacnet-gw-01` (`custom_id: smart-nation-bacnet-gw-01`)<br>• Requests without a valid key are blocked at the perimeter with `401 Unauthorized`. |
+| **2. Kong Gateway (`:8088`) $\rightarrow$ CDE BACnet Adapter (`:8090`)** | **Perimeter-Terminated (`hide_credentials: true`)** | • Kong strips the secret API key after validation and forwards the request over the internal `cde-network` bridge with `X-Consumer-Username: zaarr-bacnet-gw-01` and `X-Request-ID`. |
+| **3. CDE BACnet Adapter (`:8090`) $\rightarrow$ Upstream iMOPS (`192.168.50.197:13000`)** | **HTTP Basic Auth (`-u username:password`)**<br>*(Also supports Bearer JWT & `X-API-Key`)* | • Header: `Authorization: Basic <base64(user:pass)>`<br>• Default User: `dors_user@isems.com`<br>• Default Password: `1Pu1znaPbTqXcyC5KVpP`<br>• Equivalent to `curl -u "dors_user@isems.com:1Pu1znaPbTqXcyC5KVpP"` |
+
+### 8.4 Sample Outbound `curl` Statements (CDE $\rightarrow$ Upstream iMOPS `192.168.50.197:13000`)
+
+#### A. Sensor Telemetry Updates (`POST /api/v1/sensors/bacnet/updates`)
+```bash
+curl -i -X POST "http://192.168.50.197:13000/api/v1/sensors/bacnet/updates" \
+  -u "dors_user@isems.com:1Pu1znaPbTqXcyC5KVpP" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_name": "Smart Nation Exhibition System",
+    "gateway_id": "zaarr-bacnet-gw-01",
+    "batch_id": "20261114T045000Z-01",
+    "sent_at": "2026-11-14T04:50:00Z",
+    "controller": {
+      "device_id": 864077,
+      "name": "P864-864077",
+      "model": "P864",
+      "ip_address": "192.168.0.160",
+      "online": true
+    },
+    "sensors": [
+      {
+        "sensor_id": "AI-101",
+        "group": "BW-INT-M",
+        "sensor_name": "BW-INT-M (WIRELESS AIR TOUCH DISPLAY)",
+        "metric": "Temperature",
+        "category": "environmental",
+        "value": 23.45,
+        "unit": "°C",
+        "display_text": "23.45 °C",
+        "severity": "normal",
+        "is_triggered": false,
+        "is_alarm": false,
+        "update_type": "poll",
+        "updated_at": "2026-11-14T04:49:59.812Z"
+      },
+      {
+        "sensor_id": "BI-1",
+        "group": "WD3",
+        "sensor_name": "WD3 (WATER LEAK)",
+        "metric": "Water detected",
+        "category": "safety_security",
+        "value": 1,
+        "unit": "",
+        "display_text": "Water Detected",
+        "severity": "alarm",
+        "is_triggered": true,
+        "is_alarm": true,
+        "update_type": "cov",
+        "updated_at": "2026-11-14T04:49:59.850Z"
+      }
+    ]
+  }'
+```
+
+#### B. Controller Connectivity Status (`POST /api/v1/sensors/bacnet/controller-status`)
+```bash
+curl -i -X POST "http://192.168.50.197:13000/api/v1/sensors/bacnet/controller-status" \
+  -u "dors_user@isems.com:1Pu1znaPbTqXcyC5KVpP" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_name": "Smart Nation Exhibition System",
+    "gateway_id": "zaarr-bacnet-gw-01",
+    "sent_at": "2026-11-14T04:50:00Z",
+    "controller": {
+      "device_id": 864077,
+      "name": "P864-864077",
+      "model": "P864",
+      "vendor_name": "Optergy",
+      "firmware_revision": "2.4.0",
+      "ip_address": "192.168.0.160",
+      "online": true,
+      "communication_status": "online",
+      "point_count": 12
+    }
+  }'
+```
+
 ---
 
 ## 9. Automatic Medallion Data Lakehouse Persistence (MinIO & PostgreSQL)
