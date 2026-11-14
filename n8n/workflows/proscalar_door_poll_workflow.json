@@ -1,0 +1,100 @@
+{
+  "name": "Proscalar Door Poll → iMOPS Access Snapshot",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "door-poll-schedule",
+      "name": "Every 30 Seconds",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * n8n Code node: poll Proscalar TPI and build access-snapshot payload for iMOPS.\n * Env on n8n-server: PROSCALAR_TPI_BASE_URL, PROSCALAR_TPI_ACCOUNT_ID, PROSCALAR_TPI_CLIENT_SECRET,\n * PROSCALAR_TPI_INSECURE_TLS (default true).\n */\nconst REQUEST_GAP_MS = 600;\n\nconst baseUrl = String($env.PROSCALAR_TPI_BASE_URL || '').replace(/\\/$/, '');\nconst accountId = $env.PROSCALAR_TPI_ACCOUNT_ID;\nconst clientSecret = $env.PROSCALAR_TPI_CLIENT_SECRET;\nconst insecure = String($env.PROSCALAR_TPI_INSECURE_TLS || 'true').toLowerCase() !== 'false';\n\nif (!baseUrl || !accountId || !clientSecret) {\n  throw new Error('Configure PROSCALAR_TPI_BASE_URL, PROSCALAR_TPI_ACCOUNT_ID, PROSCALAR_TPI_CLIENT_SECRET on n8n');\n}\n\nfunction sleep(ms) {\n  return new Promise((resolve) => setTimeout(resolve, ms));\n}\n\nfunction pageOf(data) {\n  const page = data?.results && typeof data.results === 'object' && !Array.isArray(data.results)\n    ? data.results\n    : data;\n  const list = Array.isArray(page?.list) ? page.list : (Array.isArray(page) ? page : []);\n  const totalItem = Number(page?.totalItem);\n  return {\n    list,\n    totalItem: Number.isFinite(totalItem) ? totalItem : list.length,\n    totalPage: Number(page?.totalPage || 1),\n  };\n}\n\nfunction classifyDoor(door) {\n  const rawDoor = String(door?.doorStatus ?? '').trim().toLowerCase();\n  const rawLock = String(door?.lockStatus ?? '').trim().toLowerCase();\n  if (rawDoor === 'forced opened' || rawDoor === '5002' || rawDoor.includes('forced')) return 'forceOpen';\n  if (rawDoor === 'left opened' || rawDoor === '5001' || rawDoor.includes('left open') || rawDoor.includes('held open')) return 'heldOpen';\n  if (rawDoor === 'opened' || rawDoor === '5000' || rawDoor === 'open') return 'open';\n  const isClosed = rawDoor === 'closed' || rawDoor === '5003';\n  const isUnlocked = rawLock === 'activated' || rawLock === '5018' || rawLock === 'unlocked';\n  if (isClosed && isUnlocked) return 'unlocked';\n  if (isClosed) return 'locked';\n  return 'unknown';\n}\n\nlet token = null;\nlet tokenAt = 0;\n\nasync function httpRequest(opts) {\n  return this.helpers.httpRequest({\n    skipSslCertificateValidation: insecure,\n    json: true,\n    ...opts,\n  });\n}\n\nasync function getToken() {\n  const ttl = 3 * 60 * 60 * 1000;\n  if (token && (Date.now() - tokenAt) < ttl - 60_000) return token;\n  const res = await httpRequest.call(this, {\n    method: 'POST',\n    url: `${baseUrl}/idp/1.0/service-accounts/login`,\n    body: { accountId, clientSecret },\n    headers: { 'Content-Type': 'application/json' },\n  });\n  token = res?.token || res?.data?.token;\n  if (!token) throw new Error('Proscalar login did not return a token');\n  tokenAt = Date.now();\n  return token;\n}\n\nasync function tpiGet(path, params = {}, retried = false) {\n  const tok = await getToken.call(this);\n  try {\n    const data = await httpRequest.call(this, {\n      method: 'GET',\n      url: `${baseUrl}${path}`,\n      qs: params,\n      headers: { Authorization: `Proscalar-tpi ${tok}` },\n    });\n    return data?.list ? data : (data?.data || data);\n  } catch (err) {\n    const status = err?.statusCode || err?.response?.statusCode || err?.httpCode;\n    if (status === 401 && !retried) {\n      token = null;\n      return tpiGet.call(this, path, params, true);\n    }\n    const message = err?.message || String(err);\n    throw new Error(`Proscalar GET ${path} failed: ${message}`);\n  }\n}\n\nasync function listAllDoors() {\n  const doors = [];\n  let page = 0;\n  let totalPage = 1;\n  while (page < totalPage) {\n    const data = await tpiGet.call(this, '/event/hardware/door/list', { page, size: 100, view: 'detail' });\n    const list = Array.isArray(data?.list) ? data.list : (Array.isArray(data) ? data : []);\n    doors.push(...list);\n    totalPage = Number(data?.totalPage || 1);\n    page += 1;\n    if (page < totalPage) await sleep(REQUEST_GAP_MS);\n  }\n  return doors;\n}\n\nasync function pollPanicAndAlarmGroups() {\n  const data = await tpiGet.call(this, '/central/1.0/alarm-groups', { size: 100 });\n  const groups = pageOf(data).list;\n  const panicZones = [];\n  const fireZones = [];\n  const panicInputIdSet = new Set();\n\n  for (const group of groups) {\n    const zones = Array.isArray(group?.alarmZones)\n      ? group.alarmZones\n      : (Array.isArray(group?.zones)\n        ? group.zones\n        : (Array.isArray(group?.accessZones) ? group.accessZones : []));\n\n    for (const zone of zones) {\n      const zoneType = String(zone?.setting?.zoneType || zone?.zoneType || zone?.type || '').toUpperCase();\n      const inputIds = Array.isArray(zone?.setting?.logicalInputIds)\n        ? zone.setting.logicalInputIds\n        : (Array.isArray(zone?.logicalInputIds) ? zone.logicalInputIds : []);\n\n      const summary = {\n        alarmGroupId: group?.id || group?.alarmGroupId || null,\n        alarmGroupName: group?.name || null,\n        zoneId: zone?.zoneId || zone?.id || zone?.alarmZoneId || null,\n        zoneName: zone?.zoneName || zone?.name || 'Unnamed Zone',\n        zoneType,\n        alarmRaised: Boolean(zone?.alarmRaised),\n        lastAlarmRaisedTs: zone?.lastAlarmRaisedTs || null,\n        lastAlarmNormalTs: zone?.lastAlarmNormalTs || null,\n        logicalInputIds: inputIds,\n      };\n\n      if (zoneType === 'PANIC') {\n        panicZones.push(summary);\n        for (const id of inputIds) {\n          if (id) panicInputIdSet.add(String(id));\n        }\n      } else if (zoneType === 'FIRE') {\n        fireZones.push(summary);\n      }\n    }\n  }\n\n  const panicInputs = [];\n  const panicInputIds = Array.from(panicInputIdSet);\n  if (panicInputIds.length > 0) {\n    await sleep(REQUEST_GAP_MS);\n    const inputData = await tpiGet.call(this, '/event/hardware/logical-input/list', {\n      ids: panicInputIds.join(','),\n      size: Math.max(50, panicInputIds.length),\n    });\n    for (const inp of pageOf(inputData).list) {\n      const state = String(inp?.state || inp?.status || 'Unknown').trim();\n      panicInputs.push({\n        id: inp?.id || inp?.logicalInputId || null,\n        name: inp?.name || inp?.logicalInputName || null,\n        state,\n        isActive: ['active', 'open', 'tamper'].includes(state.toLowerCase()),\n      });\n    }\n  }\n\n  return {\n    latchedCount: panicZones.filter((z) => z.alarmRaised).length,\n    activeInputCount: panicInputs.filter((i) => i.isActive).length,\n    fireLatchedCount: fireZones.filter((z) => z.alarmRaised).length,\n    zones: panicZones,\n    inputs: panicInputs,\n    polledAt: new Date().toISOString(),\n  };\n}\n\nasync function pollUnprocessedEmergencyAlarms() {\n  const data = await tpiGet.call(this, '/event/alarm/list', { eventCodes: '5014', size: 100 });\n  const page = pageOf(data);\n  return {\n    unprocessedCount: page.totalItem,\n    alarms: page.list.slice(0, 25).map((item) => ({\n      id: item?.id || null,\n      eventCode: String(item?.eventCode || '5014'),\n      eventPointId: item?.eventPointId || null,\n      eventPointName: item?.eventPointName || null,\n      eventSourceId: item?.eventSourceId || null,\n      eventSourceName: item?.eventSourceName || null,\n      eventTimestamp: item?.eventTimestamp || null,\n    })),\n    polledAt: new Date().toISOString(),\n  };\n}\n\nconst doors = await listAllDoors.call(this);\nconst access = { locked: 0, open: 0, forceOpen: 0, heldOpen: 0, unlocked: 0, unknown: 0 };\nfor (const door of doors) {\n  access[classifyDoor(door)] += 1;\n}\n\nlet panic = null;\ntry {\n  await sleep(REQUEST_GAP_MS);\n  panic = await pollPanicAndAlarmGroups.call(this);\n} catch (e) {\n  panic = null;\n}\n\nlet emergency = null;\ntry {\n  await sleep(REQUEST_GAP_MS);\n  emergency = await pollUnprocessedEmergencyAlarms.call(this);\n} catch (e) {\n  emergency = null;\n}\n\nconst polledAt = new Date().toISOString();\n\nreturn [{\n  json: {\n    polledAt,\n    total: doors.length,\n    access,\n    panic,\n    emergency,\n    metadata: {\n      source: 'proscalar_n8n_door_poll',\n      workflow: 'Proscalar Door Poll → iMOPS Access Snapshot',\n    },\n  },\n}];\n"
+      },
+      "id": "door-poll-tpi",
+      "name": "Poll Proscalar TPI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PROSCALAR_TO_IMOPS_API || $env.BACKEND_API || 'http://host.docker.internal:13000' }}/api/proscalar/access-snapshot",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.PROSCALAR_TO_IMOPS_AUTH || $env.BACKEND_AUTH || 'Basic cHJvc2NhbGFyQGdtYWlsLmNvbTpmd3BreWpjZjJpOGZjb1AwNXlFeg==' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "door-poll-push-imops",
+      "name": "Push Access Snapshot to iMOPS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 30 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Poll Proscalar TPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Proscalar TPI": {
+      "main": [
+        [
+          {
+            "node": "Push Access Snapshot to iMOPS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

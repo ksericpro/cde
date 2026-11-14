@@ -80,6 +80,10 @@ Expected output:
 
 The unified workflow is located in `workflows/proscalar_ingestion_workflow.json`. It dynamically resolves the destination iMOPS API via the `PROSCALAR_TO_IMOPS_API` environment variable configured in `.env` (with fallback to `BACKEND_API`).
 
+**Office-hours door suppress (hardcoded):** On the event path, after classify, **Door Office Hours Suppress** drops Proscalar codes `5001`, `5002`, `5003`, `8000` on **Mon–Fri 09:00–17:00** `Asia/Kuala_Lumpur` (no iMOPS POST; webhook `status: filtered`). Logic source: `scripts/proscalar_door_office_hours_filter.code.js`. Same nodes exist in `proscalar_ingestion_workflow_v2.json`.
+
+**Door census (TPI poll):** Import and activate `workflows/proscalar_door_poll_workflow.json` when iMOPS runs with `PROSCALAR_ACCESS_SNAPSHOT_SOURCE=n8n`. TPI credentials stay on n8n; the workflow POSTs to `/api/proscalar/access-snapshot`. Poll logic lives in `scripts/proscalar_door_poll_tpi.code.js`.
+
 #### Method A: Via Web UI
 
 - **Fastest Option (Canvas Paste):** Open `workflows/proscalar_ingestion_workflow.json`, copy the entire contents (`Ctrl + A`, `Ctrl + C`), click anywhere on the n8n canvas at `https://<N8N_HOST>:5678`, and press **`Ctrl + V`**. Click **Save**.
