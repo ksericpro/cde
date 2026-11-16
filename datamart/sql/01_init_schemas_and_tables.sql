@@ -290,7 +290,7 @@ $$;
 CREATE TABLE IF NOT EXISTS silver.bacnet_controllers (
     device_id             INTEGER PRIMARY KEY,
     gateway_id            VARCHAR(80) NOT NULL DEFAULT 'zaarr-bacnet-gw-01',
-    site_name             VARCHAR(150) NOT NULL DEFAULT 'Smart Nation Exhibition System',
+    site_name             VARCHAR(150) NOT NULL DEFAULT 'Malaysia International Trade and Exhibition Centre',
     name                  VARCHAR(120) NOT NULL,
     model                 VARCHAR(60) DEFAULT 'P864',
     vendor_name           VARCHAR(80) DEFAULT 'Optergy',
@@ -309,7 +309,7 @@ CREATE TABLE IF NOT EXISTS silver.bacnet_sensor_history (
     reading_id            BIGSERIAL PRIMARY KEY,
     batch_id              VARCHAR(100),
     gateway_id            VARCHAR(80) NOT NULL DEFAULT 'zaarr-bacnet-gw-01',
-    site_name             VARCHAR(150) NOT NULL DEFAULT 'Smart Nation Exhibition System',
+    site_name             VARCHAR(150) NOT NULL DEFAULT 'Malaysia International Trade and Exhibition Centre',
     device_id             INTEGER NOT NULL DEFAULT 864077,
     sensor_id             VARCHAR(40) NOT NULL,
     group_label           VARCHAR(80),
@@ -331,7 +331,7 @@ CREATE INDEX IF NOT EXISTS idx_silver_bacnet_hist_sensor ON silver.bacnet_sensor
 
 CREATE TABLE IF NOT EXISTS mart_security.dm_bacnet_sensors (
     sensor_id             VARCHAR(40) PRIMARY KEY,
-    site_name             VARCHAR(150) NOT NULL DEFAULT 'Smart Nation Exhibition System',
+    site_name             VARCHAR(150) NOT NULL DEFAULT 'Malaysia International Trade and Exhibition Centre',
     gateway_id            VARCHAR(80) NOT NULL DEFAULT 'zaarr-bacnet-gw-01',
     controller_device_id  INTEGER NOT NULL DEFAULT 864077,
     controller_name       VARCHAR(120) DEFAULT 'P864-864077',

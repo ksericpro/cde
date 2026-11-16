@@ -1875,6 +1875,12 @@ const server = http.createServer(async (req, res) => {
       if (body.imopsBasicPass) {
         bacnetRuntimeConfig.imopsBasicPass = String(body.imopsBasicPass);
       }
+      if (body.siteName || body.site_name) {
+        bacnetRuntimeConfig.siteName = String(body.siteName || body.site_name).trim();
+      }
+      if (body.siteCode || body.site_code) {
+        bacnetRuntimeConfig.siteCode = String(body.siteCode || body.site_code).trim();
+      }
       if (body.sensorIdMap && typeof body.sensorIdMap === 'object') {
         Object.assign(bacnetRuntimeConfig.sensorIdMap, body.sensorIdMap);
       }
@@ -1882,6 +1888,8 @@ const server = http.createServer(async (req, res) => {
       return sendResponse(res, 200, {
         status: 'updated',
         imopsBaseUrl: bacnetRuntimeConfig.imopsBaseUrl,
+        siteName: bacnetRuntimeConfig.siteName,
+        siteCode: bacnetRuntimeConfig.siteCode,
         endpoints: {
           updates: `${bacnetRuntimeConfig.imopsBaseUrl}/api/v1/sensors/bacnet/updates`,
           controllerStatus: `${bacnetRuntimeConfig.imopsBaseUrl}/api/v1/sensors/bacnet/controller-status`,
@@ -1987,6 +1995,8 @@ const bacnetRuntimeConfig = {
   imopsApiKey: process.env.BACNET_IMOPS_API_KEY || '',
   imopsBasicUser: process.env.BACNET_IMOPS_USER || IMOPS_USER,
   imopsBasicPass: process.env.BACNET_IMOPS_PASS || IMOPS_PASS,
+  siteName: process.env.BACNET_SITE_NAME || 'Malaysia International Trade and Exhibition Centre',
+  siteCode: process.env.BACNET_SITE_CODE || 'OPTERGY-SDC',
   cachedBearerToken: null,
   // Configurable lookup map from short_object_id -> IMOPS sensor_id
   sensorIdMap: {
@@ -2092,7 +2102,8 @@ function transformBacnetBatchForImops(envelope) {
   });
 
   return {
-    site_name: envelope.site_name || 'Smart Nation Exhibition System',
+    site_name: bacnetRuntimeConfig.siteName || envelope.site_name || 'Malaysia International Trade and Exhibition Centre',
+    site_code: bacnetRuntimeConfig.siteCode || envelope.site_code || 'OPTERGY-SDC',
     gateway_id: envelope.gateway_id || 'zaarr-bacnet-gw-01',
     batch_id: envelope.batch_id || `batch-${Date.now()}`,
     controller: controllerBlock,
@@ -2158,7 +2169,8 @@ function enqueueBacnetDeviceStatus(envelope) {
     forwardToImops: onlineChanged,
     rawEnvelope: envelope,
     payload: {
-      site_name: envelope.site_name || 'Smart Nation Exhibition System',
+      site_name: bacnetRuntimeConfig.siteName || envelope.site_name || 'Malaysia International Trade and Exhibition Centre',
+      site_code: bacnetRuntimeConfig.siteCode || envelope.site_code || 'OPTERGY-SDC',
       gateway_id: envelope.gateway_id || 'zaarr-bacnet-gw-01',
       sent_at: envelope.sent_at || new Date().toISOString(),
       controller: {
@@ -2244,7 +2256,7 @@ async function persistBacnetToLakehouse(item) {
     const now = new Date();
     const datePart = now.toISOString().slice(0, 10);
     const tsPart = now.toISOString().replace(/[:.]/g, '-');
-    const siteName = (item.payload && item.payload.site_name) || 'Smart Nation Exhibition System';
+    const siteName = (item.payload && item.payload.site_name) || bacnetRuntimeConfig.siteName || 'Malaysia International Trade and Exhibition Centre';
     const rawStr = JSON.stringify(item.rawEnvelope || item.payload);
     const gzBuf = zlib.gzipSync(Buffer.from(rawStr, 'utf8'));
 
@@ -2269,12 +2281,13 @@ async function persistBacnetToLakehouse(item) {
     );
 
     // 2. SILVER (Curated Star Schema): Upsert Location, Controller, Sensors & Active Alarm Incidents
+    const siteCode = (item.payload && item.payload.site_code) || bacnetRuntimeConfig.siteCode || 'OPTERGY-SDC';
     const locKey = 'loc_' + makeHashKey(`${siteName}|Exhibition Hall|Level 1|BACnet Zone`);
     await pgPool.query(
       `INSERT INTO silver.dim_location (location_key, site_id, site_name, building_name, floor_name, zone_name, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-       ON CONFLICT (location_key) DO UPDATE SET updated_at = NOW()`,
-      [locKey, 'smart-nation-exhibition', siteName, 'Exhibition Hall', 'Level 1', 'BACnet Zone']
+       ON CONFLICT (location_key) DO UPDATE SET site_id = EXCLUDED.site_id, site_name = EXCLUDED.site_name, updated_at = NOW()`,
+      [locKey, siteCode, siteName, 'Exhibition Hall', 'Level 1', 'BACnet Zone']
     );
 
     const ctrl = (item.payload && item.payload.controller) || bacnetControllerCache[864077];

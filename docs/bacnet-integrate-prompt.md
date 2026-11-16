@@ -2,7 +2,7 @@
 
 ## Context & Architecture
 
-Our deployed **BACnet/IP Edge Gateway (`zaarr-bacnet-gw-01`)** at the **Smart Nation Exhibition System** monitors an Optergy P864 controller (`device_id: 864077` at `192.168.0.160:47808`) with **12 BACnet sensors** (5 wireless environmental points + 7 safety/security dry contacts).
+Our deployed **BACnet/IP Edge Gateway (`zaarr-bacnet-gw-01`)** at the **Malaysia International Trade and Exhibition Centre** monitors an Optergy P864 controller (`device_id: 864077` at `192.168.0.160:47808`) with **12 BACnet sensors** (5 wireless environmental points + 7 safety/security dry contacts).
 
 Data flows as:
 `BACnet Edge Gateway (HTTPS POST) ➔ CDE API Gateway ➔ [Optional CDE Internal MQ] ➔ CDE Adapter (Massage + Auth) ➔ IMOPS API`
@@ -32,7 +32,8 @@ Sent every ~1.5s–5s (5-second poll batches + immediate real-time COV notificat
 ```json
 {
   "gateway_id": "zaarr-bacnet-gw-01",
-  "site_name": "Smart Nation Exhibition System",
+  "site_name": "Malaysia International Trade and Exhibition Centre",
+  "site_code": "OPTERGY-SDC",
   "batch_id": "20261113T012000Z-42",
   "sent_at": "2026-11-13T01:20:00Z",
   "count": 2,
@@ -104,7 +105,8 @@ Sent on controller discovery, metadata sync, communication failure (`online: fal
 ```json
 {
   "gateway_id": "zaarr-bacnet-gw-01",
-  "site_name": "Smart Nation Exhibition System",
+  "site_name": "Malaysia International Trade and Exhibition Centre",
+  "site_code": "OPTERGY-SDC",
   "sent_at": "2026-11-13T01:20:00Z",
   "device": {
     "device_id": 864077,
@@ -151,7 +153,8 @@ Transform each `TelemetryBatchEnvelope` into the clean IMOPS payload below:
 
 ```json
 {
-  "site_name": "Smart Nation Exhibition System",
+  "site_name": "Malaysia International Trade and Exhibition Centre",
+  "site_code": "OPTERGY-SDC",
   "gateway_id": "zaarr-bacnet-gw-01",
   "batch_id": "20261113T012000Z-42",
   "controller": {

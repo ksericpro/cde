@@ -1,6 +1,6 @@
 # CDE BACnet Ingestion & Transformation Setup Guide (`zaarr-bacnet-gw-01` ➔ CDE ➔ iMOPS)
 
-This guide provides step-by-step instructions to provision the **Kong API Gateway (`:8088`)** routes, `X-API-Key` authentication, and the **CDE BACnet Transformation Adapter (`:8090`)** that receives telemetry from the **Smart Nation Exhibition System BACnet Edge Gateway (`zaarr-bacnet-gw-01`)**, massages the 12 Optergy P864 sensor points, and forwards them to **iMOPS**.
+This guide provides step-by-step instructions to provision the **Kong API Gateway (`:8088`)** routes, `X-API-Key` authentication, and the **CDE BACnet Transformation Adapter (`:8090`)** that receives telemetry from the **Malaysia International Trade and Exhibition Centre BACnet Edge Gateway (`zaarr-bacnet-gw-01`)**, massages the 12 Optergy P864 sensor points, and forwards them to **iMOPS**.
 
 ---
 
@@ -274,7 +274,8 @@ curl -i -X POST "http://192.168.50.197:13000/api/v1/sensors/bacnet/updates" \
   -u "dors_user@isems.com:1Pu1znaPbTqXcyC5KVpP" \
   -H "Content-Type: application/json" \
   -d '{
-    "site_name": "Smart Nation Exhibition System",
+    "site_name": "Malaysia International Trade and Exhibition Centre",
+    "site_code": "OPTERGY-SDC",
     "gateway_id": "zaarr-bacnet-gw-01",
     "batch_id": "20261114T045000Z-01",
     "sent_at": "2026-11-14T04:50:00Z",
@@ -326,7 +327,8 @@ curl -i -X POST "http://192.168.50.197:13000/api/v1/sensors/bacnet/controller-st
   -u "dors_user@isems.com:1Pu1znaPbTqXcyC5KVpP" \
   -H "Content-Type: application/json" \
   -d '{
-    "site_name": "Smart Nation Exhibition System",
+    "site_name": "Malaysia International Trade and Exhibition Centre",
+    "site_code": "OPTERGY-SDC",
     "gateway_id": "zaarr-bacnet-gw-01",
     "sent_at": "2026-11-14T04:50:00Z",
     "controller": {

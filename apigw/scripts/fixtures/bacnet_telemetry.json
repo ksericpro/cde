@@ -1,6 +1,7 @@
 {
   "gateway_id": "zaarr-bacnet-gw-01",
-  "site_name": "Smart Nation Exhibition System",
+  "site_name": "Malaysia International Trade and Exhibition Centre",
+  "site_code": "OPTERGY-SDC",
   "batch_id": "20261113T012000Z-42",
   "sent_at": "2026-11-13T01:20:00Z",
   "count": 2,
