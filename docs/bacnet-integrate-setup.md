@@ -266,7 +266,117 @@ cde:
 | **2. Kong Gateway (`:8088`) $\rightarrow$ CDE BACnet Adapter (`:8090`)** | **Perimeter-Terminated (`hide_credentials: true`)** | • Kong strips the secret API key after validation and forwards the request over the internal `cde-network` bridge with `X-Consumer-Username: zaarr-bacnet-gw-01` and `X-Request-ID`. |
 | **3. CDE BACnet Adapter (`:8090`) $\rightarrow$ Upstream iMOPS (`192.168.50.197:13000`)** | **HTTP Basic Auth (`-u username:password`)**<br>*(Also supports Bearer JWT & `X-API-Key`)* | • Header: `Authorization: Basic <base64(user:pass)>`<br>• Default User: `dors_user@isems.com`<br>• Default Password: `1Pu1znaPbTqXcyC5KVpP`<br>• Equivalent to `curl -u "dors_user@isems.com:1Pu1znaPbTqXcyC5KVpP"` |
 
-### 8.4 Sample Outbound `curl` Statements (CDE $\rightarrow$ Upstream iMOPS `192.168.50.197:13000`)
+### 8.4 Sample `curl` Statements & Script: Push into Kong (`:8088`) $\rightarrow$ CDE Adapter $\rightarrow$ iMOPS (`192.168.50.197:13000`)
+
+You can run the automated Bash test script **[apigw/scripts/test_kong_to_imops.sh](file:///c:/Projects/cde/apigw/scripts/test_kong_to_imops.sh)** on the server:
+
+```bash
+chmod +x apigw/scripts/test_kong_to_imops.sh
+./apigw/scripts/test_kong_to_imops.sh http://localhost:8088
+```
+
+Or run the individual `curl` commands against **Kong Gateway (`http://localhost:8088` or `https://isems-office-cde.somesolutions.xyz`)** with `X-API-Key: zaarr-bacnet-gw01-key-2026`. Kong validates the API key and forwards the request to the CDE Adapter (`:8090`), which automatically saves the data into the Medallion Lakehouse and pushes the transformed payload (with `Basic Auth -u dors_user@isems.com:1Pu1znaPbTqXcyC5KVpP`) to **iMOPS (`http://192.168.50.197:13000`)**:
+
+#### A. Push Controller Discovery / Status via Kong (`POST http://localhost:8088/api/v1/bacnet/devices`)
+```bash
+curl -i -X POST "http://localhost:8088/api/v1/bacnet/devices" \
+  -H "Content-Type: application/json" \
+  -H "User-Agent: zaarr-bacnet-gw/1.0" \
+  -H "X-API-Key: zaarr-bacnet-gw01-key-2026" \
+  -d '{
+    "gateway_id": "zaarr-bacnet-gw-01",
+    "site_name": "Malaysia International Trade and Exhibition Centre",
+    "site_code": "OPTERGY-SDC",
+    "sent_at": "2026-11-16T02:00:00Z",
+    "device": {
+      "device_id": 864077,
+      "object_name": "P864-864077",
+      "model_name": "P864",
+      "vendor_name": "Optergy",
+      "vendor_id": 515,
+      "firmware_revision": "2.4.0",
+      "address": "192.168.0.160:47808",
+      "online": true,
+      "communication_status": "online",
+      "point_count": 12,
+      "discovered_at": "2026-11-16T00:00:05Z"
+    }
+  }'
+```
+
+#### B. Push Sensor Telemetry Batch via Kong (`POST http://localhost:8088/api/v1/bacnet/telemetry`)
+```bash
+curl -i -X POST "http://localhost:8088/api/v1/bacnet/telemetry" \
+  -H "Content-Type: application/json" \
+  -H "User-Agent: zaarr-bacnet-gw/1.0" \
+  -H "X-API-Key: zaarr-bacnet-gw01-key-2026" \
+  -d '{
+    "gateway_id": "zaarr-bacnet-gw-01",
+    "site_name": "Malaysia International Trade and Exhibition Centre",
+    "site_code": "OPTERGY-SDC",
+    "batch_id": "20261116T020000Z-01",
+    "sent_at": "2026-11-16T02:00:00Z",
+    "count": 2,
+    "readings": [
+      {
+        "timestamp": "2026-11-16T01:59:59.812Z",
+        "source_type": "poll",
+        "device_id": 864077,
+        "device_name": "P864-864077",
+        "controller_model": "P864",
+        "device_address": "192.168.0.160:47808",
+        "object_type": "analog-input",
+        "object_instance": 101,
+        "object_id": "analog-input:101",
+        "short_object_id": "AI-101",
+        "point_name": "BW-INT-M (WIRELESS AIR TOUCH DISPLAY)",
+        "property_label": "Temperature",
+        "dashboard_label": "BW-INT-M",
+        "connection_bus": "BG-1000-M (Wireless)",
+        "value": 23.45,
+        "value_text": "23.45 °C",
+        "unit": "°C",
+        "unit_id": 62,
+        "is_triggered": false,
+        "is_alarm": false,
+        "quality": "good"
+      },
+      {
+        "timestamp": "2026-11-16T01:59:59.850Z",
+        "source_type": "cov",
+        "device_id": 864077,
+        "device_name": "P864-864077",
+        "controller_model": "P864",
+        "device_address": "192.168.0.160:47808",
+        "object_type": "binary-input",
+        "object_instance": 1,
+        "object_id": "binary-input:1",
+        "short_object_id": "BI-1",
+        "point_name": "WD3 (WATER LEAK)",
+        "property_label": "Water detected",
+        "dashboard_label": "WD3",
+        "connection_bus": "IN 1 • Dry Contact (LED 1)",
+        "value": 1,
+        "value_text": "Water Detected",
+        "is_triggered": true,
+        "is_alarm": true,
+        "quality": "alarm"
+      }
+    ]
+  }'
+```
+
+#### C. Verify Kong $\rightarrow$ CDE $\rightarrow$ iMOPS Delivery (`GET http://localhost:8088/api/v1/bacnet/status`)
+```bash
+curl -s "http://localhost:8088/api/v1/bacnet/status" \
+  -H "X-API-Key: zaarr-bacnet-gw01-key-2026"
+```
+
+---
+
+### 8.5 Internal Outbound Reference (What CDE Adapter Sends to iMOPS `192.168.50.197:13000`)
+
+*(For reference/debugging only — CDE executes these outbound HTTP calls automatically when you call the Kong endpoints in Section 8.4 above)*
 
 #### A. Sensor Telemetry Updates (`POST /api/v1/sensors/bacnet/updates`)
 ```bash
