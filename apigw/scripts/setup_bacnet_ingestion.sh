@@ -20,11 +20,26 @@ ADAPTER_UPSTREAM_URL="${5:-http://cde-datamart-etl:8090}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# -----------------------------------------------------------------------------
+# 0. Resolve Target iMOPS Base URL from IMOPS_IP parameter
+# -----------------------------------------------------------------------------
+if [[ "$IMOPS_IP" =~ ^(https?://)?(localhost|127\.0\.0\.1)(:[0-9]+)? ]]; then
+    PORT_PART="${BASH_REMATCH[3]:-:13000}"
+    IMOPS_BASE_URL="http://host.docker.internal${PORT_PART}"
+elif [[ "$IMOPS_IP" =~ ^https?:// ]]; then
+    IMOPS_BASE_URL="${IMOPS_IP%/}"
+elif [[ "$IMOPS_IP" =~ :[0-9]+$ ]]; then
+    IMOPS_BASE_URL="http://${IMOPS_IP}"
+else
+    IMOPS_BASE_URL="http://${IMOPS_IP}:13000"
+fi
+export IMOPS_BASE_URL
+
 # Ensure cde-network exists, kong-gateway is attached, and the Datamart/BACnet Adapter stack (:8090) is running with latest code & schema
 echo "⚙️  Ensuring CDE Datamart & BACnet Adapter (:8090) stack and database schema are up to date..."
 docker network create cde-network >/dev/null 2>&1 || true
 docker network connect cde-network kong-gateway >/dev/null 2>&1 || true
-docker compose -f "$PROJECT_ROOT/datamart/docker-compose.yml" up -d
+IMOPS_BASE_URL="$IMOPS_BASE_URL" docker compose -f "$PROJECT_ROOT/datamart/docker-compose.yml" up -d
 docker restart cde-datamart-etl >/dev/null 2>&1 || true
 docker exec kong-gateway kong reload >/dev/null 2>&1 || true
 
@@ -42,20 +57,6 @@ for i in {1..15}; do
     fi
     sleep 1
 done
-
-# -----------------------------------------------------------------------------
-# 0. Resolve Target iMOPS Base URL from IMOPS_IP parameter
-# -----------------------------------------------------------------------------
-if [[ "$IMOPS_IP" =~ ^(https?://)?(localhost|127\.0\.0\.1)(:[0-9]+)? ]]; then
-    PORT_PART="${BASH_REMATCH[3]:-:13000}"
-    IMOPS_BASE_URL="http://host.docker.internal${PORT_PART}"
-elif [[ "$IMOPS_IP" =~ ^https?:// ]]; then
-    IMOPS_BASE_URL="${IMOPS_IP%/}"
-elif [[ "$IMOPS_IP" =~ :[0-9]+$ ]]; then
-    IMOPS_BASE_URL="http://${IMOPS_IP}"
-else
-    IMOPS_BASE_URL="http://${IMOPS_IP}:13000"
-fi
 
 SERVICE_NAME="cde-bacnet-adapter-service"
 CONSUMER_NAME="zaarr-bacnet-gw-01"
@@ -140,12 +141,12 @@ curl -s -X POST "$ADMIN_URL/consumers/$CONSUMER_NAME/key-auth" \
     -d "{\"key\":\"$API_KEY\"}" > /dev/null 2>&1 || true
 echo "  ✅ Consumer '$CONSUMER_NAME' ready with X-API-Key"
 
-# 5. Update CDE Adapter Outbound iMOPS Target URL
-echo -e "\n[5/5] Updating CDE BACnet Adapter Target iMOPS URL ($IMOPS_BASE_URL)..."
+# 5. Update CDE Adapter Outbound iMOPS Target URL & Site Identity
+echo -e "\n[5/5] Updating CDE BACnet Adapter Target iMOPS URL ($IMOPS_BASE_URL) & Site (OPTERGY-SDC)..."
 curl -s -X POST "$ADAPTER_ADMIN_URL/api/v1/bacnet/config" \
     -H "Content-Type: application/json" \
-    -d "{\"imopsBaseUrl\":\"$IMOPS_BASE_URL\"}" > /dev/null || true
-echo "  ✅ CDE Adapter outbound iMOPS target set to: $IMOPS_BASE_URL"
+    -d "{\"imopsBaseUrl\":\"$IMOPS_BASE_URL\",\"siteName\":\"Malaysia International Trade and Exhibition Centre\",\"siteCode\":\"OPTERGY-SDC\"}" > /dev/null || true
+echo "  ✅ CDE Adapter outbound iMOPS target set to: $IMOPS_BASE_URL (Site: Malaysia International Trade and Exhibition Centre [OPTERGY-SDC])"
 
 echo -e "\n=================================================================="
 echo " Deliverables for Edge Gateway Setup (zaarr-bacnet-gw-01)"

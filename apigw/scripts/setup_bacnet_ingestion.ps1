@@ -275,6 +275,8 @@ Write-Host "`n[5/5] Updating CDE BACnet Adapter Target iMOPS URL ($imopsBaseUrl)
 try {
     $cfgResp = Invoke-RestMethod -Uri "$AdapterAdminUrl/api/v1/bacnet/config" -Method Post -ContentType "application/json" -Body (@{
         imopsBaseUrl = $imopsBaseUrl
+        siteName     = "Malaysia International Trade and Exhibition Centre"
+        siteCode     = "OPTERGY-SDC"
     } | ConvertTo-Json) -ErrorAction Stop
     Write-Host "   [OK] CDE Adapter outbound iMOPS target set to: $($cfgResp.imopsBaseUrl)" -ForegroundColor Green
     Write-Host "        -> Sensor Updates:    $($cfgResp.endpoints.updates)" -ForegroundColor Gray

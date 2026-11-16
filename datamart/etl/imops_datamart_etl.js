@@ -1991,7 +1991,7 @@ const server = http.createServer(async (req, res) => {
 // BACnet Adapter State, Transformation Rules & Async Retry Worker
 // -----------------------------------------------------------------------------
 const bacnetRuntimeConfig = {
-  imopsBaseUrl: (process.env.BACNET_IMOPS_BASE_URL || IMOPS_BASE_URL || 'http://host.docker.internal:13000').replace(/\/+$/, ''),
+  imopsBaseUrl: (process.env.BACNET_IMOPS_BASE_URL || 'http://192.168.50.197:13000').replace(/\/+$/, ''),
   imopsApiKey: process.env.BACNET_IMOPS_API_KEY || '',
   imopsBasicUser: process.env.BACNET_IMOPS_USER || IMOPS_USER,
   imopsBasicPass: process.env.BACNET_IMOPS_PASS || IMOPS_PASS,
