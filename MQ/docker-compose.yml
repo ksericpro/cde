@@ -1,0 +1,54 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: cde-mosquitto
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Singapore}
+    ports:
+      - "${MQTT_PORT:-1883}:1883"     # Internal / LAN MQTT (TCP)
+      - "${MQTT_WS_PORT:-9002}:9001"  # MQTT over WebSockets (Cloudflare Tunnel -> wss://)
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883 && nc -z 127.0.0.1 9001"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - cde-network
+
+  management-center:
+    image: cedalo/management-center:2.6.4
+    container_name: cde-mq-ui
+    restart: unless-stopped
+    ports:
+      - "${MMC_PORT:-8089}:8088"      # Cedalo Management Center Web UI (remapped from 8088 to avoid Kong conflict)
+    environment:
+      - TZ=${TZ:-Asia/Singapore}
+      - CEDALO_MC_PROXY_HOST=0.0.0.0
+      - CEDALO_MC_PROXY_PORT=8088
+      - CEDALO_MC_PROXY_CONFIG=/management-center/config/config.json
+      - CEDALO_MC_USERNAME=${MMC_ADMIN_USER:-admin}
+      - CEDALO_MC_PASSWORD=${MMC_ADMIN_PASSWORD:-cdepassword123}
+      - CEDALO_MC_BROKER_ID=cde-mosquitto
+      - CEDALO_MC_BROKER_NAME=CDE Mosquitto
+      - CEDALO_MC_BROKER_URL=mqtt://cde-mosquitto:1883
+      - CEDALO_MC_BROKER_USERNAME=${MQTT_ADMIN_USER:-cedalo}
+      - CEDALO_MC_BROKER_PASSWORD=${MQTT_ADMIN_PASSWORD:-cdepassword123}
+      - CEDALO_MC_SHOW_STREAMSHEETS=false
+    volumes:
+      - ./management-center/config:/management-center/config
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - cde-network
+
+networks:
+  cde-network:
+    name: cde-network
+    external: true

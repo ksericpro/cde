@@ -44,6 +44,11 @@ lake_data/
 *.duckdb
 *.parquet
 
+# Message Queue (Mosquitto & Cedalo Management Center)
+MQ/mosquitto/data/
+MQ/mosquitto/log/
+MQ/management-center/config/config.json
+
 # Redis
 dump.rdb
 
