@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["paho-mqtt"]
+# ///
 """
 test_pubsub.py — CLI MQTT pub/sub tester for CDE Mosquitto (TCP, local WS, and Cloudflare Tunnel WSS).
 
 Requires:
-    pip install paho-mqtt
+    paho-mqtt (auto-uses MQ/.venv if present, or run with: uv run scripts/test_pubsub.py ...)
 
 Examples:
     # Subscribe locally over WebSockets (port 9002)
@@ -20,14 +24,24 @@ Examples:
 """
 
 import argparse
+import os
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 try:
     import paho.mqtt.client as mqtt
 except ImportError:
-    print("Error: 'paho-mqtt' is not installed. Run: pip install paho-mqtt", file=sys.stderr)
+    _mq_dir = Path(__file__).resolve().parent.parent
+    _candidates = [
+        _mq_dir / ".venv" / "bin" / "python",
+        _mq_dir / ".venv" / "Scripts" / "python.exe",
+    ]
+    for _venv_py in _candidates:
+        if _venv_py.exists() and os.path.abspath(sys.executable) != os.path.abspath(str(_venv_py)):
+            os.execv(str(_venv_py), [str(_venv_py), *sys.argv])
+    print("Error: 'paho-mqtt' is not installed. Run: pip install paho-mqtt (or uv run scripts/test_pubsub.py ...)", file=sys.stderr)
     sys.exit(1)
 
 
