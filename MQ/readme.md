@@ -96,6 +96,21 @@ Host ports are chosen to avoid conflicts with other CDE services (`apigw` Kong u
 
 > **Tip:** Because default ACLs are set to `publishClientSend=deny` and `subscribe=deny`, `client_alarms` can *only* subscribe to `cde/alarms/#` and cannot publish or read any other topic.
 
+### Automated CLI Script to Create `client_alarms` & `role-alarms-read` (No UI Clicks Needed)
+
+Instead of creating the role and client manually in the Cedalo Web UI, you can run the automated provisioning script:
+
+- **Linux / macOS (Bash):**
+  ```bash
+  chmod +x scripts/setup_client_alarms.sh
+  ./scripts/setup_client_alarms.sh
+  ```
+- **Windows (PowerShell):**
+  ```powershell
+  .\scripts\setup_client_alarms.ps1
+  ```
+*(Both scripts also accept custom arguments: `./scripts/setup_client_alarms.sh [USERNAME] [PASSWORD] [ROLE_NAME] [TOPIC_PATTERN]`)*
+
 ---
 
 ## Manual Pub/Sub Verification
